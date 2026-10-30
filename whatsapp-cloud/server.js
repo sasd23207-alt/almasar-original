@@ -237,6 +237,19 @@ const server = http.createServer(async (req, res) => {
       finally { client.release(); }
     }
 
+    if (req.method === "POST" && url.pathname === "/pair/revoke") {
+      if (!(await authorized(req))) return send(res, 401, { error: "unauthorized" });
+      const supplied = req.headers.authorization || "";
+      const token = supplied.startsWith("Bearer ") ? supplied.slice(7) : "";
+      const hash = crypto.createHash("sha256").update(token).digest("hex");
+      const revoked = await pool.query(
+        "UPDATE whatsapp_device_tokens SET revoked_at=NOW() WHERE token_sha256=$1 AND revoked_at IS NULL RETURNING id",
+        [hash]
+      );
+      if (!revoked.rowCount) return send(res, 404, { error: "device_token_not_found" });
+      return send(res, 200, { revoked: true });
+    }
+
     if (req.method === "GET" && url.pathname === "/messages") {
       if (!(await authorized(req))) return send(res, 401, { error: "unauthorized" });
       if (!pool) return send(res, 503, { error: "database_not_configured" });
@@ -244,14 +257,15 @@ const server = http.createServer(async (req, res) => {
       const status = url.searchParams.get("status") || "new";
       const allowed = ["new", "processing", "processed", "review", "all"];
       if (!allowed.includes(status)) return send(res, 400, { error: "invalid_status" });
-      const cursor = Math.max(0, Number(url.searchParams.get("after") || 0));
+      const cursor = String(url.searchParams.get("after") || "0");
+      if (!/^\\d+$/.test(cursor)) return send(res, 400, { error: "invalid_cursor" });
       const query = status === "all"
         ? "SELECT id, wamid, phone_number_id, business_display_phone, contact_wa_id, contact_name, message_type, message_text, message_timestamp, media, raw_payload, received_at, processing_status FROM whatsapp_messages WHERE id>$1 ORDER BY id ASC LIMIT $2"
         : "SELECT id, wamid, phone_number_id, business_display_phone, contact_wa_id, contact_name, message_type, message_text, message_timestamp, media, raw_payload, received_at, processing_status FROM whatsapp_messages WHERE processing_status=$1 AND id>$2 ORDER BY id ASC LIMIT $3";
       const values = status === "all" ? [cursor, limit] : [status, cursor, limit];
       const result = await pool.query(query, values);
-      const nextCursor = result.rows.length ? result.rows[result.rows.length - 1].id : cursor;
-      return send(res, 200, { messages: result.rows, next_cursor: Number(nextCursor) });
+      const nextCursor = result.rows.length ? String(result.rows[result.rows.length - 1].id) : cursor;
+      return send(res, 200, { messages: result.rows, next_cursor: nextCursor });
     }
 
     const statusMatch = url.pathname.match(/^\/messages\/([^/]+)\/status$/);
@@ -270,7 +284,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && url.pathname.startsWith("/media/")) {
-      if (!authorized(req)) return send(res, 401, { error: "unauthorized" });
+      if (!(await authorized(req))) return send(res, 401, { error: "unauthorized" });
       if (!pool) return send(res, 503, { error: "database_not_configured" });
       if (!META_ACCESS_TOKEN || !META_GRAPH_VERSION) return send(res, 503, { error: "media_download_not_configured" });
       const mediaId = decodeURIComponent(url.pathname.slice("/media/".length));
