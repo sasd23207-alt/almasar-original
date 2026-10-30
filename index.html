@@ -1055,7 +1055,7 @@ async function syncCloudMessages() {
   const base = String(cfg.baseUrl || '').replace(/\/+$/, '');
   if (!base || !cfg.token) { cloudReport('اربط الجهاز أولًا.'); return; }
   el('cloudSyncButton').disabled = true;
-  let cursor = Number(cfg.cursor || 0), received = 0, added = 0, queued = 0;
+  let cursor = String(cfg.cursor || "0"), received = 0, added = 0, queued = 0;
   try {
     for (let page = 0; page < 10; page++) {
       const response = await fetch(base + '/messages?status=all&limit=100&after=' + cursor, { headers: cloudAuthHeaders() });
@@ -1079,7 +1079,7 @@ async function syncCloudMessages() {
     }
     saveState(); await writeChain;
     renderAll(); renderRemoteUnmatched();
-    cloudReport('اكتملت المزامنة: ' + received + ' رسالة مستلمة، ' + added + ' أضيفت للتجار المطابقين، ' + queued + ' تنتظر ربطها بتاجر.');
+    cloudReport('اكتملت المزامنة: ' + received + ' رسالة مستلمة، ' + added + ' أضيفت لسجلات التجار، ' + queued + ' تنتظر ربطها بتاجر. الرسائل الجديدة لم تُسجّل كحوالات مؤكدة تلقائيًا.');
   } catch (error) { cloudReport('توقفت المزامنة: ' + (error.message || 'خطأ اتصال') + ' — سيُعاد المحاولة لاحقًا.'); }
   finally { el('cloudSyncButton').disabled = false; }
 }
