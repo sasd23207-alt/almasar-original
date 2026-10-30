@@ -9,14 +9,9 @@ test("validates a genuine Meta-style HMAC signature", () => {
   const raw = Buffer.from('{"object":"whatsapp_business_account"}');
   const secret = "test-app-secret";
   const signature = "sha256=" + crypto.createHmac("sha256", secret).update(raw).digest("hex");
-  const previous = process.env.META_APP_SECRET;
-  process.env.META_APP_SECRET = secret;
-  // The module reads its secret at load time, so this assertion is performed by the
-  // helper's exported signature behavior in the isolated child process test below.
-  assert.equal(typeof validSignature, "function");
-  if (previous === undefined) delete process.env.META_APP_SECRET;
-  else process.env.META_APP_SECRET = previous;
-  assert.match(signature, /^sha256=[a-f0-9]{64}$/);
+  assert.equal(validSignature(raw, signature, secret), true);
+  assert.equal(validSignature(raw, signature, "wrong-secret"), false);
+  assert.equal(validSignature(raw, "sha256=bad", secret), false);
 });
 
 test("keeps a long text message intact", () => {
