@@ -17,7 +17,7 @@ This service is the server-side intake layer for the existing Almasar PWA.
 
 This bridge receives only new events Meta delivers for the connected WhatsApp Business Account and subscribed webhook fields. It does not sign into or scrape a personal WhatsApp account, does not import personal-account chat history, and does not promise access to every personal or group conversation.
 
-The bridge does not yet perform OCR, speech transcription, AI transfer extraction, merchant matching, or automatic ledger writes. The existing PWA is not yet connected to this server. Those are subsequent integration phases and must be tested before the workflow is called automatic or production-ready.
+The bridge stores inbound events and the PWA can pair a device and fetch stored messages. PWA sync is performed while the app is open/online; a static PWA cannot run continuously while closed. OCR, audio transcription, and automatic posting of ledger transactions are not yet complete. Incoming messages are staged for the existing extraction/review workflow; do not treat message receipt as a booked financial transaction.
 
 ## Required environment variables
 
@@ -28,7 +28,9 @@ Copy `.env.example` for local setup. Configure real secrets only in the hosting 
 - `META_APP_SECRET`: Meta app secret used to verify webhook signatures.
 - `META_ACCESS_TOKEN`: token authorized for the connected WhatsApp Business Account and media retrieval.
 - `META_GRAPH_VERSION`: currently supported Graph API version configured for the Meta app.
-- `WEBHOOK_READ_TOKEN`: separate secret protecting the bridge inbox API.
+- `WEBHOOK_READ_TOKEN`: legacy/admin secret protecting the bridge inbox API.
+- `PAIRING_CODE`: one-time code used to pair the first PWA device. It is consumed once; reset `whatsapp_pairing_state` only through a controlled database administration action if a fresh pairing is required.
+- `PWA_ORIGIN`: exact deployed PWA origin, e.g. `https://sasd23207-alt.github.io`.
 - `PORT`: supplied by the hosting platform.
 - `PGSSL=true`: only if the database endpoint requires trusted TLS.
 
@@ -50,9 +52,11 @@ Meta webhook callback: `GET|POST /webhook`
 
 ## Authenticated API
 
-Send `Authorization: Bearer <WEBHOOK_READ_TOKEN>`.
+The PWA uses a per-device token returned by `POST /pair` after supplying `PAIRING_CODE`. The token is stored hashed in PostgreSQL. `POST /pair/revoke` revokes the calling device token. For administrative scripts, `Authorization: Bearer <WEBHOOK_READ_TOKEN>` remains supported.
 
-- `GET /messages?status=new&limit=100`
+- `POST /pair` — JSON `{ "code": "one-time-code", "device_name": "phone" }`; returns a per-device token once.
+- `POST /pair/revoke` — revoke the currently authenticated device token.
+- `GET /messages?status=all&limit=100&after=0` — cursor is an integer string to avoid BIGINT precision loss.
   - Status values: `new`, `processing`, `processed`, `review`, `all`.
   - Returns complete stored message JSON, text, sender/contact information, timestamps, and available media metadata.
 - `POST /messages/:wamid/status`
