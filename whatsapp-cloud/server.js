@@ -14,6 +14,7 @@ const ACCESS_TOKEN = process.env.WEBHOOK_READ_TOKEN;
 const PAIRING_CODE = process.env.PAIRING_CODE;
 const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
 const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION;
+const PWA_ORIGIN = process.env.PWA_ORIGIN || "*";
 const pool = DATABASE_URL ? new Pool({
   connectionString: DATABASE_URL,
   ssl: process.env.PGSSL === "true" ? { rejectUnauthorized: true } : undefined,
@@ -23,7 +24,7 @@ const pool = DATABASE_URL ? new Pool({
 }) : null;
 
 function send(res, status, body, type = "application/json; charset=utf-8") {
-  res.writeHead(status, { "content-type": type, "cache-control": "no-store" });
+  res.writeHead(status, { "content-type": type, "cache-control": "no-store", "access-control-allow-origin": PWA_ORIGIN, "vary": "Origin", "access-control-allow-headers": "Authorization, Content-Type", "access-control-allow-methods": "GET, POST, OPTIONS" });
   res.end(typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body));
 }
 function constantTimeEqual(left, right) {
@@ -184,6 +185,7 @@ function route(req, res, pathname, method) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
   try {
+    if (req.method === "OPTIONS") return send(res, 204, "");
     if (route(req, res, "/health", "GET")) {
       if (!pool) return send(res, 503, { ok: false, database: "not_configured" });
       await pool.query("SELECT 1");
@@ -254,7 +256,7 @@ const server = http.createServer(async (req, res) => {
 
     const statusMatch = url.pathname.match(/^\/messages\/([^/]+)\/status$/);
     if (req.method === "POST" && statusMatch) {
-      if (!authorized(req)) return send(res, 401, { error: "unauthorized" });
+      if (!(await authorized(req))) return send(res, 401, { error: "unauthorized" });
       if (!pool) return send(res, 503, { error: "database_not_configured" });
       const body = await readJson(req);
       const allowed = ["new", "processing", "processed", "review"];
