@@ -277,9 +277,11 @@ async function main() {
     console.log("Almasar WhatsApp bridge listening on " + PORT);
   });
 }
-main().catch((error) => {
-  console.error("Startup failed:", error.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error("Startup failed:", error.message);
+    process.exit(1);
+  });
+}
 
 module.exports = { validSignature, messageText, messageMedia, extractMessages };
