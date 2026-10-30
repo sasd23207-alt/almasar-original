@@ -1,0 +1,1000 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>المسار للحوالات</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b6e4f">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1b1f24;--muted:#5f6b76;--line:#dde2e8;--accent:#0b6e4f;--danger:#b3261e;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101418;--card:#1a2027;--text:#e8ecf0;--muted:#9aa7b3;--line:#2c353f;--accent:#3ecf9a;--danger:#ff8a80;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#101418;--card:#1a2027;--text:#e8ecf0;--muted:#9aa7b3;--line:#2c353f;--accent:#3ecf9a;--danger:#ff8a80;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 system-ui,"Segoe UI",Tahoma,sans-serif}
+main{max-width:780px;margin:0 auto;padding:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+h1{font-size:20px;margin:6px 0}h2{font-size:17px;margin:0 0 8px}
+.muted{color:var(--muted);font-size:14px}
+.warn{border-color:var(--danger)}
+label{display:block;margin:8px 0 2px;font-size:14px;color:var(--muted)}
+input,select,textarea,button{font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:8px;max-width:100%}
+input,select,textarea{width:100%;box-sizing:border-box}
+button{cursor:pointer;width:auto}button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.danger{color:var(--danger);border-color:var(--danger)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:end}.row>*{flex:1 1 130px}
+.scroll{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{border-bottom:1px solid var(--line);padding:6px;text-align:right;white-space:nowrap}
+td.note{white-space:normal;min-width:120px}
+.msg{padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
+.pos{color:var(--accent)}.neg{color:var(--danger)}
+.struck{text-decoration:line-through;color:var(--muted)}.dim{color:var(--muted)}.total-row td{font-weight:700;border-top:2px solid var(--line)}
+@media print{.noprint{display:none}body{background:#fff;color:#000}}
+
+/* ===== v3 design: app shell, bottom navigation ===== */
+:root{--bg:#eef2f0;--card:#fff;--line:#e3e9e6;--accent:#0b6e4f;--accent2:#0f8f66;--shadow:0 1px 2px rgba(16,40,30,.06),0 6px 18px rgba(16,40,30,.06);--nav:64px}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0d1311;--card:#16201c;--line:#26332d;--shadow:0 1px 2px rgba(0,0,0,.4)}}
+body{font-family:system-ui,"Segoe UI",Tahoma,"Noto Sans Arabic",sans-serif;-webkit-tap-highlight-color:transparent}
+main{padding:0 14px calc(var(--nav) + 28px + env(safe-area-inset-bottom,0px))}
+.appbar{position:sticky;top:0;z-index:20;margin:0 -14px 14px;padding:calc(14px + env(safe-area-inset-top,0px)) 18px 16px;background:linear-gradient(135deg,#0b6e4f,#12a073);color:#fff;border-radius:0 0 24px 24px;box-shadow:0 8px 24px rgba(11,110,79,.25)}
+.appbar .brand{display:flex;align-items:center;gap:12px}
+.appbar .logo{width:42px;height:42px;border-radius:12px;background:#fff;display:grid;place-items:center}
+.appbar .logo img{width:30px;height:30px;border-radius:7px}
+.appbar h1{margin:0;font-size:20px;color:#fff;line-height:1.2}.appbar small{opacity:.85;font-size:12px}
+#statusBar{margin:0 0 12px;font-size:12.5px;padding:8px 12px;border-radius:12px;background:var(--card)}
+.card{border-radius:18px;padding:16px;box-shadow:var(--shadow);border:1px solid var(--line)}
+.card h2{font-size:16px;font-weight:700;margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.card h2::before{content:"";width:4px;height:16px;border-radius:2px;background:var(--accent)}
+.card.warn{border-color:#e9c46a;background:color-mix(in srgb,#e9c46a 14%,var(--card))}
+input,select,textarea{min-height:46px;border-radius:12px;background:color-mix(in srgb,var(--bg) 60%,var(--card));padding:10px 12px}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+button{min-height:46px;border-radius:12px;padding:10px 16px;font-weight:600;transition:transform .08s}
+button:active{transform:scale(.97)}
+button.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));border:0;box-shadow:0 4px 12px rgba(11,110,79,.25)}
+table th{background:color-mix(in srgb,var(--accent) 8%,var(--card));font-weight:700;font-size:13px}
+table tr:nth-child(even) td{background:color-mix(in srgb,var(--bg) 40%,transparent)}
+.tab-off{display:none!important}
+.tabs{position:fixed;inset:auto 0 0 0;z-index:30;display:flex;background:var(--card);border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));box-shadow:0 -6px 24px rgba(0,0,0,.08)}
+.tabs button{flex:1;min-height:var(--nav);border:0;background:none;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11.5px;position:relative;border-radius:14px}
+.tabs button svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.tabs button.on{color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
+.tabs .badge[hidden]{display:none}.tabs .badge{position:absolute;top:4px;inset-inline-start:calc(50% + 6px);min-width:18px;height:18px;border-radius:9px;background:var(--danger);color:#fff;font-size:11px;display:grid;place-items:center;padding:0 4px}
+@media (min-width:820px){main{max-width:820px}.tabs{max-width:560px;margin:0 auto 14px;border-radius:22px;border:1px solid var(--line)}}
+@media print{.appbar,.tabs{display:none!important}.tab-off{display:block!important}.card:not(.print-ok){display:none!important}}
+#merchantSelect{display:none}
+#merchantList .mrow{display:block;width:100%;text-align:right;margin:8px 0 0;padding:14px;border-radius:14px;background:var(--card);border:1px solid var(--line);font-weight:400}
+#merchantList .mrow b{display:block;font-size:17px;margin-bottom:4px}
+#merchantList .mrow span{display:block;font-size:14px}
+.mhead{display:flex;align-items:center;gap:10px;margin-bottom:12px}.mhead b{flex:1;font-size:19px}
+.mhead button{min-height:42px}
+#addFor{margin:0 0 8px;font-weight:700;color:var(--accent)}
+#alertBar{position:fixed;top:0;inset-inline:0;z-index:60;background:#b3261e;color:#fff;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;font-weight:700;text-align:center}#alertBar[hidden]{display:none}
+</style>
+</head>
+<body>
+<div id="alertBar" role="alert" hidden></div>
+<main>
+<header class="appbar"><div class="brand"><div class="logo"><img src="icon-192.png" alt=""></div><div><h1>المسار للحوالات</h1><small>دفتر حوالاتك مع التجار — محفوظ على جوالك</small></div></div></header>
+<div id="statusBar" class="card noprint muted"></div>
+<div class="card noprint" id="inboxCard" hidden>
+  <h2>محادثة وصلتك من واتساب</h2>
+  <div id="inboxList"></div>
+</div>
+<div class="card warn noprint"><b>تنبيه حفظ البيانات:</b> بياناتك محفوظة داخل التطبيق على هذا الجهاز فقط. إذا حذفت التطبيق أو مسحت بياناته تضيع. احفظ نسخة احتياطية بانتظام من بطاقة «النسخ الاحتياطي» أسفل الصفحة.
+<div class="muted" id="storageNotice"></div></div>
+
+<div class="card noprint print-ok" id="merchantsCard">
+  <h2>التجار</h2>
+  <div id="merchantsSummary" class="muted"></div>
+  <input id="merchantSearch" type="search" placeholder="ابحث عن تاجر بالاسم">
+  <div id="merchantList"></div>
+</div>
+<div class="card noprint">
+  <h2>إضافة تاجر جديد</h2>
+  <div class="row"><select id="merchantSelect"></select>
+  <input id="newMerchantName" placeholder="اسم تاجر جديد"><button id="addMerchantButton" class="primary">إضافة تاجر</button></div>
+</div>
+
+<div class="card noprint">
+  <h2>وكيل الاستخراج</h2>
+  <p class="muted">يقرأ الرسائل المستوردة ويقترح المعاملات. كل مقترح يمر بوكيل التحقق ثم يُسجَّل «بانتظار مراجعتك» ولا يدخل الرصيد حتى تؤكده. يعمل داخل التطبيق بدون مفتاح وبدون إنترنت، ويفهم صيغ التحويل والدفع بالعربية واللهجة الليبية.</p>
+  <label>اسمك كما يظهر في المحادثة (يمكن أكثر من اسم، مفصولة بفاصلة)</label>
+  <input id="ownerNameInput" placeholder="مثال: سالم">
+  <label><input type="checkbox" id="autoConfirmInput" style="width:auto"> اعتماد الحالات السليمة تلقائيًا (الافتراضي: مغلق)</label>
+  <p class="row"><button id="analyzeButton" class="primary">حلّل الرسائل الجديدة</button><button id="stopButton" hidden>إيقاف</button></p>
+  <div id="agentReport" class="muted"></div>
+</div>
+
+<div class="card noprint" id="pendingCard" hidden>
+  <h2>بانتظار مراجعتك (<span id="pendingCount"></span>)</h2>
+  <div id="pendingList"></div>
+</div>
+
+<div class="card">
+  <div class="mhead noprint"><button id="backToMerchants" type="button">→ التجار</button><b id="mhName"></b><button id="mhAdd" type="button" class="primary">＋ معاملة</button></div>
+  <h2>كشف الحساب</h2>
+  <div class="row noprint"><div><label>الشهر</label><input type="month" id="monthInput"></div>
+  <button id="allTimeButton">كل الفترة</button><button id="printButton">طباعة</button></div>
+  <p class="muted">الرصيد الموجب = التاجر عليه لك. السالب = أنت عليك له. لكل عملة على حدة.</p>
+  <div id="statement"></div>
+</div>
+
+<div class="card noprint">
+  <h2 id="formTitle">إضافة معاملة</h2>
+  <div class="row">
+    <div><label>التاريخ والوقت</label><input type="datetime-local" id="txDate"></div>
+    <div><label>الاتجاه</label><select id="txDirection"><option value="sent">أنا حوّلت/دفعت له</option><option value="received">هو حوّل/دفع لي</option></select></div>
+  </div>
+  <div class="row">
+    <div><label>المبلغ</label><input id="txAmount" inputmode="decimal" placeholder="5000"></div>
+    <div><label>العملة</label><select id="txCurrency"></select></div>
+    <div><label>الأداة</label><select id="txInstrument"><option value="unknown">غير محدد</option><option value="cash">نقد</option><option value="bank_transfer">حوالة بنكية</option><option value="certified_cheque">صك مصدق</option><option value="other">أخرى</option></select></div>
+  </div>
+  <label>ملاحظة</label><input id="txNote">
+  <label>السبب (مطلوب عند التعديل أو الإلغاء)</label><input id="txReason">
+  <p class="row"><button id="saveTxButton" class="primary">حفظ المعاملة</button><button id="cancelEditButton" hidden>إلغاء التعديل</button></p>
+  <div id="formMessage" class="muted"></div>
+</div>
+
+<div class="card noprint">
+  <h2>استيراد محادثة واتساب</h2>
+  <p class="muted">من واتساب: تصدير المحادثة ← بدون وسائط، ثم اختر الملف أو الصق النص هنا. أو الصق أي نص (حتى لو غير منظم أو من مكان آخر) وسيقرؤه الوكيل. الجديد فقط يُضاف عند إعادة الاستيراد.</p>
+  <input type="file" id="chatFile" accept=".txt,text/plain">
+  <label>أو الصق النص</label><textarea id="chatText" rows="4"></textarea>
+  <p><button id="importButton" class="primary">استيراد</button></p>
+  <div id="importReport" class="muted"></div>
+  <div id="messages"></div>
+</div>
+<div class="card noprint">
+  <h2>إعدادات الوكيل</h2>
+  <p class="muted">خارج claude.ai يحتاج الوكيل مفتاح Anthropic API. يُحفظ المفتاح على هذا الجهاز فقط ولا يدخل النسخ الاحتياطية، وتُحاسَب على استخدامه أنت.</p>
+  <label>المفتاح</label><input id="apiKeyInput" type="password" autocomplete="off" placeholder="sk-ant-…">
+  <label>النموذج</label><input id="modelInput" placeholder="claude-sonnet-5-5">
+  <p><button id="saveSettingsButton" class="primary">حفظ الإعدادات</button></p>
+  <div id="settingsReport" class="muted"></div>
+</div>
+
+<div class="card noprint">
+  <h2>النسخ الاحتياطي</h2>
+  <p class="muted" id="backupStatus"></p>
+  <p class="row"><button id="backupButton" class="primary">حفظ نسخة احتياطية</button><button id="restoreButton">استعادة من ملف</button></p>
+  <input type="file" id="restoreFile" accept=".json,application/json" hidden>
+  <div id="backupReport" class="muted"></div>
+</div>
+</main>
+<nav class="tabs noprint" id="tabs" aria-label="التنقل">
+<button data-tab="merchants" class="on"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3 20v-1a6 6 0 0 1 12 0v1"/><circle cx="17.5" cy="9" r="2.4"/><path d="M17 14a5 5 0 0 1 4 5v1"/></svg>التجار</button>
+<button data-tab="add"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/></svg>إضافة</button>
+<button data-tab="agent"><svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M9 11h6M9 14h4"/></svg>الواتساب<span class="badge" id="pendingBadge" hidden>0</span></button>
+<button data-tab="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3.9a7 7 0 0 0-2-1.2L14 3h-4l-.4 2.6a7 7 0 0 0-2 1.2l-2.3-.9-2 3.4 2 1.5a7 7 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-.9a7 7 0 0 0 2 1.2L10 21h4l.4-2.6a7 7 0 0 0 2-1.2l2.3.9 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z"/></svg>الإعدادات</button>
+</nav>
+
+
+<script>
+// <pure-logic>
+const CURRENCY_DECIMALS = { LYD: 3, USD: 2, EUR: 2, GBP: 2, CHF: 2, TRY: 2, EGP: 2, TND: 3, DZD: 2, MAD: 2, SAR: 2, AED: 2, QAR: 2, KWD: 3, BHD: 3, OMR: 3, JOD: 3, CNY: 2, INR: 2, PKR: 2, CAD: 2, AUD: 2, SDG: 2, RUB: 2 };
+const CURRENCY_NAMES = { LYD: 'دينار ليبي', USD: 'دولار أمريكي', EUR: 'يورو', GBP: 'جنيه إسترليني', CHF: 'فرنك سويسري', TRY: 'ليرة تركية', EGP: 'جنيه مصري', TND: 'دينار تونسي', DZD: 'دينار جزائري', MAD: 'درهم مغربي', SAR: 'ريال سعودي', AED: 'درهم إماراتي', QAR: 'ريال قطري', KWD: 'دينار كويتي', BHD: 'دينار بحريني', OMR: 'ريال عماني', JOD: 'دينار أردني', CNY: 'يوان صيني', INR: 'روبية هندية', PKR: 'روبية باكستانية', CAD: 'دولار كندي', AUD: 'دولار أسترالي', SDG: 'جنيه سوداني', RUB: 'روبل روسي' };
+const INVISIBLE_MARKS = /[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
+const DATE_PART = '(\\d{1,2})[/.\\-](\\d{1,2})[/.\\-](\\d{2,4})';
+const TIME_PART = '(\\d{1,2}):(\\d{2})(?::(\\d{2}))?\\s*([AaPp]\\.?\\s?[Mm]\\.?|ص|م)?';
+// One flexible header: optional [brackets], optional dash, day-first, month-first or year-first dates.
+const MESSAGE_HEADER = new RegExp('^\\[?\\s*(\\d{1,4})[/.\\-](\\d{1,2})[/.\\-](\\d{1,4})[,،]?\\s+' + TIME_PART + '\\s*\\]?\\s*(?:[-–—]\\s*)?(.*)$');
+
+function pad(number) { return String(number).padStart(2, '0'); }
+
+function normalizeLine(rawLine) {
+  const withoutMarks = rawLine.replace(INVISIBLE_MARKS, '').replace(/\r$/, '');
+  return withoutMarks
+    .replace(/[٠-٩]/g, (digit) => '٠١٢٣٤٥٦٧٨٩'.indexOf(digit))
+    .replace(/[۰-۹]/g, (digit) => '۰۱۲۳۴۵۶۷۸۹'.indexOf(digit));
+}
+
+// Returns messages as { at: 'YYYY-MM-DDTHH:MM:SS', sender: string|null, text }.
+function parseExport(fileText) {
+  const lines = fileText.split('\n').map(normalizeLine);
+  const matches = lines.map((line) => MESSAGE_HEADER.exec(line));
+  const found = matches.filter((m) => m && m[1].length <= 2);   // year-first dates say nothing about day/month order
+  const firstNumbers = found.map((m) => Number(m[1]));
+  const secondNumbers = found.map((m) => Number(m[2]));
+  let dateOrder = 'DMY';
+  let orderIsCertain = false;
+  if (firstNumbers.some((n) => n > 12)) { orderIsCertain = true; }
+  else if (secondNumbers.some((n) => n > 12)) { dateOrder = 'MDY'; orderIsCertain = true; }
+  if (found.length === 0 && matches.some(Boolean)) { orderIsCertain = true; }
+
+  const messages = [];
+  lines.forEach((line, index) => {
+    const m = matches[index];
+    if (!m) {
+      if (messages.length > 0) { messages[messages.length - 1].text += '\n' + line; }
+      return;
+    }
+    const yearFirst = m[1].length === 4;
+    const day = yearFirst ? m[3] : (dateOrder === 'DMY' ? m[1] : m[2]);
+    const month = yearFirst ? m[2] : (dateOrder === 'DMY' ? m[2] : m[1]);
+    let year = Number(yearFirst ? m[1] : m[3]); if (year < 100) { year += 2000; }
+    let hour = Number(m[4]);
+    if (m[7]) {
+      const isPm = ['pm', 'م'].includes(m[7].replace(/[.\s]/g, '').toLowerCase());
+      hour = (hour % 12) + (isPm ? 12 : 0);
+    }
+    const body = m[8];
+    const separator = body.indexOf(': ');
+    const hasSender = separator !== -1 && separator <= 60;
+    messages.push({
+      at: `${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${m[5]}:${pad(m[6] || 0)}`,
+      sender: hasSender ? body.slice(0, separator) : null,
+      text: hasSender ? body.slice(separator + 2) : body,
+    });
+  });
+  // A blank line at the end of the file must not stick to the last message.
+  messages.forEach((message) => { message.text = message.text.replace(/\n+$/, ''); });
+  return { messages, dateOrder, orderIsCertain };
+}
+
+// Text that is not a WhatsApp export: keep every non-empty line as it is; the agent reads it.
+function parseFreeText(text, importIso) {
+  return text.split('\n').map((line) => normalizeLine(line).trim()).filter(Boolean)
+    .map((line) => ({ at: importIso, sender: null, text: line, freeText: true }));
+}
+
+// Restoring a backup only ADDS what is missing. It never overwrites or removes anything already here.
+function mergeBackup(current, backup) {
+  const added = {};
+  for (const name of ['merchants', 'messages', 'transactions', 'audit', 'agentLog']) {
+    current[name] = current[name] || [];
+    const knownIds = new Set(current[name].map((item) => item.id));
+    added[name] = 0;
+    for (const item of (backup[name] || [])) {
+      if (item && item.id && !knownIds.has(item.id)) { current[name].push(item); added[name] += 1; }
+    }
+  }
+  return added;
+}
+
+// Money is kept as whole numbers of the smallest unit, never as decimals.
+function toMinor(amountText, currency) {
+  const decimals = CURRENCY_DECIMALS[currency];
+  if (decimals === undefined) { throw new Error('عملة غير مدعومة'); }
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(normalizeLine(amountText).trim().replace(/,/g, ''));
+  if (!match) { throw new Error('المبلغ غير صالح'); }
+  const fraction = match[2] || '';
+  if (fraction.length > decimals && /[1-9]/.test(fraction.slice(decimals))) {
+    throw new Error(`${currency} يقبل ${decimals} خانات عشرية كحد أقصى`);
+  }
+  const minor = Number(match[1] + fraction.slice(0, decimals).padEnd(decimals, '0'));
+  if (minor <= 0) { throw new Error('المبلغ يجب أن يكون أكبر من صفر'); }
+  if (!Number.isSafeInteger(minor) || minor > 1e14) { throw new Error('المبلغ كبير جدًا، تحقق من الرقم'); }
+  return minor;
+}
+
+function fromMinor(minor, currency) {
+  const decimals = CURRENCY_DECIMALS[currency];
+  const digits = String(Math.abs(minor)).padStart(decimals + 1, '0');
+  return (minor < 0 ? '-' : '') + digits.slice(0, -decimals) + '.' + digits.slice(-decimals);
+}
+
+function monthRange(year, month) {
+  const nextYear = month === 12 ? year + 1 : year;
+  const nextMonth = month === 12 ? 1 : month + 1;
+  return [`${year}-${pad(month)}-01T00:00:00`, `${nextYear}-${pad(nextMonth)}-01T00:00:00`];
+}
+
+// Only confirmed transactions count. balance = total sent - total received, per currency.
+function buildStatement(transactions, merchantId, startIso, endIso) {
+  const counted = transactions
+    .filter((t) => t.merchantId === merchantId && t.status === 'confirmed')
+    .sort((a, b) => (a.at === b.at ? a.createdAt.localeCompare(b.createdAt) : a.at.localeCompare(b.at)));
+  const opening = {}, running = {}, sent = {}, received = {}, lines = [];
+  for (const t of counted) {
+    const signed = t.direction === 'sent' ? t.amountMinor : -t.amountMinor;
+    if (startIso && t.at < startIso) {
+      opening[t.currency] = (opening[t.currency] || 0) + signed;
+      running[t.currency] = (running[t.currency] || 0) + signed;
+      continue;
+    }
+    if (endIso && t.at >= endIso) { continue; }
+    running[t.currency] = (running[t.currency] || 0) + signed;
+    const bucket = t.direction === 'sent' ? sent : received;
+    bucket[t.currency] = (bucket[t.currency] || 0) + t.amountMinor;
+    lines.push({ transaction: t, balanceAfter: running[t.currency] });
+  }
+  return { opening, closing: running, sent, received, lines };
+}
+
+// ---- extraction agent (pure parts) ----
+const ALLOWED_INSTRUMENTS = ['cash', 'bank_transfer', 'certified_cheque', 'other', 'unknown'];
+
+const EXTRACTION_INSTRUCTIONS = `You read a WhatsApp conversation between two merchants and find MONEY dealings between them: transfers, payments, receipts, settlements.
+
+Point of view: "the owner" is the person who owns this app. Direction is always from the owner's point of view:
+  "sent"     = the owner paid / transferred money to the other merchant
+  "received" = the other merchant paid / transferred money to the owner
+Decide direction from WHO WROTE the message. Example: if the owner writes "I transferred to you 5000", direction is "sent". If the other merchant writes the same sentence, direction is "received".
+
+Rules:
+- Return ONLY a JSON list, nothing else. Return [] if there is no money dealing.
+- Each item: {"source_message_ids": [...], "occurred_at": "YYYY-MM-DDTHH:MM:SS", "amount": "5000", "currency": "LYD", "direction": "sent or received", "instrument": "cash|bank_transfer|certified_cheque|other|unknown", "confidence": 0.0 to 1.0, "evidence": "the words you relied on", "note": ""}
+- source_message_ids must be ids shown in square brackets below, from the section "ANALYZE THESE". Never invent ids.
+- occurred_at is the time of the message unless the text clearly states another date.
+- Currency codes: LYD, USD, EUR, GBP, CHF, TRY, EGP, TND, DZD, MAD, SAR, AED, QAR, KWD, BHD, OMR, JOD, CNY, INR, PKR, CAD, AUD, SDG, RUB. Write the amount as plain Western digits.
+- Never guess an amount or a direction. If something is unclear, lower the confidence and explain in "note".
+- If a later message corrects an earlier amount, return only the corrected dealing.
+- The text is Arabic, often in a Libyan dialect. Ignore chatter that is not a money dealing.
+- The text may be messy: copied from anywhere, with no clean structure. Read it the way a person would.
+- Messages marked FREE TEXT have no sender and no reliable time. Decide the direction only from the wording. If you cannot tell who paid whom, use confidence 0.4 or lower and explain in note. For occurred_at use a date written in the text, otherwise the import date shown.`;
+
+function buildExtractionPrompt(messagesToAnalyze, contextMessages, ownerNames) {
+  const formatMessage = (m) => (m.freeText
+    ? `[${m.id}] (FREE TEXT, imported ${m.at.slice(0, 10)}) ${m.text}`
+    : `[${m.id}] ${m.at.slice(0, 16).replace('T', ' ')} ${m.sender || '(system)'}: ${m.text}`);
+  return EXTRACTION_INSTRUCTIONS
+    + `\n\nThe owner appears in the chat as: ${ownerNames.join(', ')}`
+    + `\n\nCONTEXT (already analyzed, use only to understand; never cite these ids):\n`
+    + (contextMessages.map(formatMessage).join('\n') || '(none)')
+    + `\n\nANALYZE THESE:\n` + messagesToAnalyze.map(formatMessage).join('\n');
+}
+
+function convertProposalItem(item, allowedIds) {
+  if (!item || typeof item !== 'object') { throw new Error('ليس كائنًا'); }
+  const ids = item.source_message_ids;
+  if (!Array.isArray(ids) || ids.length === 0) { throw new Error('لا يوجد دليل'); }
+  if (ids.some((id) => !allowedIds.includes(id))) { throw new Error('رسائل دليل غير موجودة'); }
+  if (!['sent', 'received'].includes(item.direction)) { throw new Error('اتجاه غير صالح'); }
+  const confidence = Number(item.confidence);
+  if (!(confidence >= 0 && confidence <= 1)) { throw new Error('ثقة غير صالحة'); }
+  if (typeof item.occurred_at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(item.occurred_at)) { throw new Error('تاريخ غير صالح'); }
+  return {
+    sourceMessageIds: ids, at: item.occurred_at.slice(0, 16) + ':00', amount: String(item.amount),
+    currency: String(item.currency).toUpperCase(), direction: item.direction,
+    instrument: item.instrument || 'unknown', confidence,
+    evidence: String(item.evidence || ''), note: String(item.note || ''),
+  };
+}
+
+// Never guesses: a broken item is reported, not repaired.
+function parseExtractorOutput(modelText, allowedIds) {
+  const cleaned = modelText.trim().replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+  let items;
+  try { items = JSON.parse(cleaned); } catch (error) { return { proposals: [], problems: ['المخرجات ليست JSON صالحًا'], unusable: true }; }
+  if (!Array.isArray(items)) { return { proposals: [], problems: ['المخرجات ليست قائمة'], unusable: true }; }
+  const proposals = [], problems = [];
+  items.forEach((item, position) => {
+    try { proposals.push(convertProposalItem(item, allowedIds)); }
+    catch (error) { problems.push(`العنصر ${position}: ${error.message}`); }
+  });
+  return { proposals, problems, unusable: false };
+}
+
+// Verification agent: fixed rules, no language model.
+function verifyProposal(proposal, messageTexts, transactions, merchantId, latestAllowedIso, minimumConfidence = 0.8) {
+  const rejectReasons = [];
+  let amountMinor = 0;
+  try { amountMinor = toMinor(proposal.amount, proposal.currency); }
+  catch (error) { rejectReasons.push('مبلغ أو عملة غير صالحة: ' + error.message); }
+  if (!ALLOWED_INSTRUMENTS.includes(proposal.instrument)) { rejectReasons.push('أداة دفع غير صالحة'); }
+  const citedTexts = proposal.sourceMessageIds.map((id) => messageTexts[id]);
+  if (citedTexts.some((text) => text === undefined)) { rejectReasons.push('رسالة الدليل غير موجودة لهذا التاجر'); }
+  if (rejectReasons.length > 0) { return { status: 'reject', reasons: rejectReasons }; }
+
+  const reviewReasons = [];
+  const wanted = Number(normalizeLine(proposal.amount).replace(/,/g, ''));
+  const amountIsWritten = citedTexts.some((text) =>
+    (normalizeLine(text).replace(/[,،]/g, '').match(/\d+(?:\.\d+)?/g) || []).some((found) => Number(found) === wanted));
+  if (!amountIsWritten) { reviewReasons.push('المبلغ غير مكتوب كرقم في الرسالة (ربما بالحروف، أو خمّنه الوكيل)'); }
+  if (proposal.at > latestAllowedIso) { reviewReasons.push('التاريخ في المستقبل'); }
+  if (proposal.confidence < minimumConfidence) { reviewReasons.push(`ثقة منخفضة (${proposal.confidence})`); }
+  const duplicate = transactions.some((t) => t.merchantId === merchantId && t.status !== 'voided'
+    && t.at.slice(0, 16) === proposal.at.slice(0, 16) && t.amountMinor === amountMinor
+    && t.currency === proposal.currency && t.direction === proposal.direction);
+  if (duplicate) { reviewReasons.push('ربما مكررة: توجد معاملة بنفس الدقيقة والمبلغ والاتجاه'); }
+
+  return reviewReasons.length > 0 ? { status: 'needs_review', reasons: reviewReasons } : { status: 'ok', reasons: [] };
+}
+// </pure-logic>
+
+// ---------------------------------------------------------------- storage
+const DATABASE_NAME = 'almasar-db';
+const STATE_KEY = 'state';
+const LEGACY_STORAGE_KEY = 'almasar_web_v1';
+const SCHEMA_VERSION = 2;
+const DEFAULT_MODEL = 'claude-sonnet-5-5';
+let state = { merchants: [], messages: [], transactions: [], audit: [], agentLog: [], settings: { autoConfirmOk: false }, schemaVersion: SCHEMA_VERSION };
+const ui = { merchantId: null, monthValue: '', editingId: null, sourceMessageId: null };
+
+// ---- local database (IndexedDB). The service worker opens the same database to drop shared chats into 'inbox'.
+function openDatabase() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DATABASE_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains('records')) { db.createObjectStore('records'); }
+      if (!db.objectStoreNames.contains('inbox')) { db.createObjectStore('inbox', { keyPath: 'id' }); }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+let databasePromise = null;
+function database() { if (!databasePromise) { databasePromise = openDatabase(); } return databasePromise; }
+async function runRequest(storeName, mode, action) {
+  const db = await database();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(storeName, mode);
+    const request = action(transaction.objectStore(storeName));
+    transaction.oncomplete = () => resolve(request ? request.result : undefined);
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  });
+}
+
+// Migrations only ever ADD fields. Nothing is removed or rewritten.
+function migrateState() {
+  state.agentLog = state.agentLog || [];
+  state.settings = state.settings || { autoConfirmOk: false };
+  state.schemaVersion = SCHEMA_VERSION;
+}
+async function loadState() {
+  try {
+    const saved = await runRequest('records', 'readonly', (store) => store.get(STATE_KEY));
+    if (saved) { state = saved; }
+    else {
+      const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);   // data of the earlier browser-only version, if it ran on this origin
+      if (legacy) { state = JSON.parse(legacy); }
+    }
+  } catch (error) {
+    persistBlocked = true;
+    showAlert('تحذير: تعذّر قراءة بياناتك المحفوظة. أوقفت الحفظ حتى لا تُمسح. أغلق التطبيق وافتحه من جديد.');
+    document.getElementById('storageNotice').textContent = 'تعذّر قراءة قاعدة البيانات المحلية. لا تُدخل بيانات قبل حل هذه المشكلة.';
+  }
+  migrateState();
+}
+let persistBlocked = false;
+function showAlert(text) { const bar = document.getElementById('alertBar'); bar.textContent = text; bar.hidden = false; }
+let writeChain = Promise.resolve();
+function saveState() {
+  if (persistBlocked) { showAlert('تحذير: لم يُحفظ هذا التغيير. تعذّر فتح قاعدة بيانات التطبيق، فأوقفت الحفظ حتى لا أمسح بياناتك القديمة. أغلق التطبيق وافتحه من جديد ولا تُدخل شيئًا قبل ذلك.'); return false; }
+  writeChain = writeChain
+    .then(() => runRequest('records', 'readwrite', (store) => store.put(state, STATE_KEY)))
+    .catch(() => { showAlert('تحذير: فشل حفظ آخر تغيير على هذا الجهاز. خذ نسخة احتياطية الآن من الإعدادات.'); document.getElementById('storageNotice').textContent = 'تعذّر الحفظ في قاعدة البيانات المحلية. احفظ نسخة احتياطية الآن.'; });
+  return true;
+}
+function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+const el = (id) => document.getElementById(id);
+const DIRECTION_LABEL = { sent: 'أنا ← له', received: 'هو ← لي' };
+const INSTRUMENT_LABEL = { unknown: '', cash: 'نقد', bank_transfer: 'حوالة بنكية', certified_cheque: 'صك مصدق', other: 'أخرى' };
+
+// ---------------------------------------------------------------- merchants
+function renderMerchants() {
+  el('merchantSelect').innerHTML = state.merchants.length
+    ? state.merchants.map((m) => `<option value="${m.id}"${m.id === ui.merchantId ? ' selected' : ''}>${escapeHtml(m.name)}</option>`).join('')
+    : '<option value="">لا يوجد تجار بعد</option>';
+}
+el('addMerchantButton').addEventListener('click', () => {
+  const name = el('newMerchantName').value.trim();
+  if (!name) { return; }
+  const merchant = { id: newId(), name, createdAt: new Date().toISOString() };
+  state.merchants.push(merchant);
+  ui.merchantId = merchant.id;
+  el('newMerchantName').value = '';
+  saveState(); renderAll();
+});
+el('merchantSelect').addEventListener('change', (event) => { ui.merchantId = event.target.value || null; resetForm(); renderAll(); });
+
+// ---------------------------------------------------------------- statement
+function formatTotals(totals) {
+  const currencies = Object.keys(totals);
+  if (currencies.length === 0) { return '—'; }
+  return currencies.sort().map((c) => {
+    const cls = totals[c] > 0 ? 'pos' : totals[c] < 0 ? 'neg' : '';
+    return `<span class="${cls}">${fromMinor(totals[c], c)} ${c}</span>`;
+  }).join(' ، ');
+}
+// Convention: "عليه" = what I sent to the merchant (he owes me). "له" = what he sent to me (I owe him).
+function describeBalance(minor, currency) {
+  if (minor > 0) { return `${fromMinor(minor, currency)} ${currency} — عليه (التاجر مدين لك)`; }
+  if (minor < 0) { return `${fromMinor(-minor, currency)} ${currency} — له (أنت مدين للتاجر)`; }
+  return `صفر ${currency} — الحساب متوازن`;
+}
+function renderStatement() {
+  if (!ui.merchantId) { el('statement').innerHTML = '<p class="muted">أضف تاجرًا للبدء.</p>'; return; }
+  const merchant = state.merchants.find((m) => m.id === ui.merchantId);
+  let startIso = null, endIso = null;
+  if (ui.monthValue) {
+    const [year, month] = ui.monthValue.split('-').map(Number);
+    [startIso, endIso] = monthRange(year, month);
+  }
+  const statement = buildStatement(state.transactions, ui.merchantId, startIso, endIso);
+  const inPeriod = (t) => (!startIso || t.at >= startIso) && (!endIso || t.at < endIso);
+  const notCounted = state.transactions.filter((t) => t.merchantId === ui.merchantId && t.status !== 'confirmed' && inPeriod(t));
+
+  const entries = [
+    ...statement.lines.map((line) => ({ transaction: line.transaction, balanceAfter: line.balanceAfter })),
+    ...notCounted.map((transaction) => ({ transaction, balanceAfter: null })),
+  ].sort((a, b) => a.transaction.at.localeCompare(b.transaction.at));
+
+  const rows = entries.map(({ transaction: t, balanceAfter }) => {
+    const counted = balanceAfter !== null;
+    const amountText = `${fromMinor(t.amountMinor, t.currency)} ${t.currency}`;
+    const edited = state.audit.filter((a) => a.transactionId === t.id && a.action === 'edit').length;
+    const statusText = t.status === 'pending_review' ? 'بانتظار المراجعة (لا تُحسب)' : t.status === 'voided' ? 'ملغاة (لا تُحسب)' : '';
+    const detail = [INSTRUMENT_LABEL[t.instrument], t.note].filter(Boolean).map(escapeHtml).join(' — ');
+    const actions = t.status === 'voided' ? ''
+      : `<button data-edit="${t.id}">تعديل</button>` + (t.status === 'confirmed' ? ` <button class="danger" data-void="${t.id}">إلغاء</button>` : '');
+    return `<tr class="${counted ? '' : 'dim'}${t.status === 'voided' ? ' struck' : ''}"><td>${t.at.replace('T', ' ').slice(0, 16)}</td>
+      <td class="note">${detail}${edited ? ` <span class="muted">(عُدّلت ${edited})</span>` : ''}${statusText ? `<br><b>${statusText}</b>` : ''}</td>
+      <td>${t.direction === 'sent' ? amountText : ''}</td><td>${t.direction === 'received' ? amountText : ''}</td>
+      <td>${counted ? describeBalance(balanceAfter, t.currency) : ''}</td><td class="noprint">${actions}</td></tr>`;
+  }).join('');
+
+  const currencies = [...new Set([...Object.keys(statement.opening), ...Object.keys(statement.sent),
+    ...Object.keys(statement.received), ...Object.keys(statement.closing)])].sort();
+  const summaryRows = currencies.map((c) => `<tr><td>${c}</td><td>${describeBalance(statement.opening[c] || 0, c)}</td>
+    <td>${fromMinor(statement.sent[c] || 0, c)}</td><td>${fromMinor(statement.received[c] || 0, c)}</td>
+    <td><b>${describeBalance(statement.closing[c] || 0, c)}</b></td></tr>`).join('');
+  const pendingCount = notCounted.filter((t) => t.status === 'pending_review').length;
+  const voidedCount = notCounted.filter((t) => t.status === 'voided').length;
+
+  el('statement').innerHTML = `
+    <p><b>كشف حساب التاجر: ${escapeHtml(merchant.name)}</b><br>الفترة: ${ui.monthValue || 'كل الفترة'} — تاريخ الطباعة: ${new Date().toLocaleDateString('ar-LY')}</p>
+    <div class="scroll"><table><thead><tr><th>العملة</th><th>الرصيد الافتتاحي</th><th>إجمالي عليه</th><th>إجمالي له</th><th>المتبقي</th></tr></thead>
+    <tbody>${summaryRows || '<tr><td colspan="5" class="muted">لا توجد معاملات محسوبة في هذه الفترة.</td></tr>'}</tbody></table></div>
+    <p class="muted">عليه = ما حوّلتَه أنت للتاجر (هو مدين لك). له = ما حوّله لك التاجر (أنت مدين له). المتبقي لكل عملة على حدة.
+    المحسوب: ${statement.lines.length} معاملة${pendingCount ? ` — بانتظار المراجعة: ${pendingCount}` : ''}${voidedCount ? ` — ملغاة: ${voidedCount}` : ''}.</p>
+    <div class="scroll"><table><thead><tr><th>التاريخ</th><th>البيان</th><th>عليه</th><th>له</th><th>الرصيد بعدها</th><th class="noprint"></th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="6" class="muted">لا توجد معاملات في هذه الفترة.</td></tr>'}</tbody></table></div>`;
+}
+el('monthInput').addEventListener('change', (event) => { ui.monthValue = event.target.value; renderStatement(); });
+el('allTimeButton').addEventListener('click', () => { ui.monthValue = ''; el('monthInput').value = ''; renderStatement(); });
+el('printButton').addEventListener('click', () => window.print());
+
+// ---------------------------------------------------------------- transaction form
+function resetForm() {
+  ui.editingId = null; ui.sourceMessageId = null;
+  el('formTitle').textContent = 'إضافة معاملة';
+  el('saveTxButton').textContent = 'حفظ المعاملة';
+  el('cancelEditButton').hidden = true;
+  ['txAmount', 'txNote', 'txReason'].forEach((id) => { el(id).value = ''; });
+  const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  el('txDate').value = now.toISOString().slice(0, 16);
+  el('formMessage').textContent = '';
+}
+function showFormMessage(text) { el('formMessage').textContent = text; }
+
+el('saveTxButton').addEventListener('click', () => {
+  if (!ui.merchantId) { showFormMessage('اختر تاجرًا أولًا.'); return; }
+  const currency = el('txCurrency').value;
+  let amountMinor;
+  try { amountMinor = toMinor(el('txAmount').value, currency); }
+  catch (error) { showFormMessage(error.message); return; }
+  if (!el('txDate').value) { showFormMessage('أدخل التاريخ.'); return; }
+  const fields = {
+    at: el('txDate').value + ':00', amountMinor, currency,
+    direction: el('txDirection').value, instrument: el('txInstrument').value, note: el('txNote').value.trim(),
+  };
+  const now = new Date().toISOString();
+  if (ui.editingId) {
+    const transaction = state.transactions.find((t) => t.id === ui.editingId);
+    const wasPending = transaction.status === 'pending_review';
+    const reason = el('txReason').value.trim() || (wasPending ? 'تصحيح خطأ الذكاء الاصطناعي' : '');
+    if (!reason) { showFormMessage('اكتب سبب التعديل.'); return; }
+    state.audit.push({ id: newId(), transactionId: transaction.id, action: 'edit', reason, at: now,
+      before: { ...transaction }, after: { ...transaction, ...fields } });
+    Object.assign(transaction, fields);
+    if (wasPending) { transaction.status = 'confirmed'; }
+  } else {
+    const transaction = { id: newId(), merchantId: ui.merchantId, ...fields, status: 'confirmed',
+      sourceMessageId: ui.sourceMessageId, createdAt: now };
+    state.transactions.push(transaction);
+    state.audit.push({ id: newId(), transactionId: transaction.id, action: 'create', reason: '', at: now, before: null, after: { ...transaction } });
+  }
+  saveState(); resetForm(); renderAll();
+});
+el('cancelEditButton').addEventListener('click', () => { resetForm(); });
+
+el('statement').addEventListener('click', (event) => {
+  const editId = event.target.dataset.edit, voidId = event.target.dataset.void;
+  if (editId) { startEdit(editId); }
+  if (voidId) {
+    const reason = el('txReason').value.trim() || (window.prompt('اكتب سبب الإلغاء (إجباري، يُحفظ في سجل التدقيق):') || '').trim();
+    if (!reason) { alert('لم يتم الإلغاء: السبب إجباري.'); return; }
+    const t = state.transactions.find((x) => x.id === voidId);
+    state.audit.push({ id: newId(), transactionId: t.id, action: 'void', reason, at: new Date().toISOString(), before: { ...t }, after: { ...t, status: 'voided' } });
+    t.status = 'voided';
+    saveState(); resetForm(); renderAll();
+  }
+});
+
+// ---------------------------------------------------------------- chat import
+function renderMessages() {
+  if (!ui.merchantId) { el('messages').innerHTML = ''; return; }
+  const own = state.messages.filter((m) => m.merchantId === ui.merchantId);
+  const latest = own.slice(-40).reverse();
+  el('messages').innerHTML = own.length
+    ? `<p class="muted">${own.length} رسالة محفوظة. آخر 40:</p>` + latest.map((m) =>
+      `<div class="msg">${m.at.replace('T', ' ').slice(0, 16)} — <b>${m.freeText ? 'نص حر' : escapeHtml(m.sender || 'النظام')}</b>: ${escapeHtml(m.text)}
+       <button data-use="${m.id}">سجّل معاملة منها</button></div>`).join('')
+    : '';
+}
+function importChat(chatText) {
+  if (!ui.merchantId) { el('importReport').textContent = 'اختر تاجرًا أولًا.'; return; }
+  if (!chatText.trim()) { el('importReport').textContent = 'لا يوجد نص للاستيراد.'; return; }
+  let parsed = parseExport(chatText);
+  let freeTextNote = '';
+  if (parsed.messages.length === 0) {
+    // Not a WhatsApp export: keep the text as it is and let the agent read it.
+    const today = new Date();
+    const importIso = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}T${pad(today.getHours())}:${pad(today.getMinutes())}:00`;
+    parsed = { messages: parseFreeText(chatText, importIso), orderIsCertain: true };
+    freeTextNote = ' لم أتعرف على صيغة واتساب، فاعتبرته نصًا حرًا وسيقرؤه الوكيل (بدون مرسل ولا وقت موثوق).';
+  }
+  // The same message sent twice in one minute is kept twice: the key includes its occurrence number.
+  const existingKeys = new Set(state.messages.filter((m) => m.merchantId === ui.merchantId).map((m) => m.key));
+  const seenInFile = {};
+  let added = 0;
+  for (const message of parsed.messages) {
+    const baseKey = message.freeText ? `free|${message.text}` : `${message.at.slice(0, 16)}|${message.sender}|${message.text}`;
+    seenInFile[baseKey] = (seenInFile[baseKey] || 0) + 1;
+    const key = `${baseKey}#${seenInFile[baseKey]}`;
+    if (existingKeys.has(key)) { continue; }
+    state.messages.push({ id: newId(), merchantId: ui.merchantId, key, at: message.at, sender: message.sender, text: message.text, freeText: Boolean(message.freeText) });
+    added += 1;
+  }
+  const saved = saveState();
+  el('importReport').textContent = `في الملف ${parsed.messages.length} رسالة، أُضيف ${added} جديدة.` + freeTextNote +
+    (parsed.orderIsCertain ? '' : ' تنبيه: لم أستطع التأكد من ترتيب اليوم والشهر في التواريخ (افترضت يوم/شهر).') +
+    (saved ? '' : ' لكن الحفظ فشل.');
+  renderMessages();
+}
+el('importButton').addEventListener('click', async () => {
+  const file = el('chatFile').files[0];
+  const text = file ? await file.text() : el('chatText').value;
+  importChat(text);
+});
+el('messages').addEventListener('click', (event) => {
+  const id = event.target.dataset.use;
+  if (!id) { return; }
+  const message = state.messages.find((m) => m.id === id);
+  resetForm();
+  ui.sourceMessageId = message.id;
+  el('txDate').value = message.at.slice(0, 16);
+  el('txNote').value = message.text.slice(0, 120);
+  el('formTitle').scrollIntoView();
+  showFormMessage('أكمل المبلغ والاتجاه ثم احفظ.');
+});
+
+// ---------------------------------------------------------------- edit loader, pending review
+function startEdit(transactionId) {
+  const t = state.transactions.find((x) => x.id === transactionId);
+  ui.editingId = t.id;
+  el('formTitle').textContent = 'تعديل معاملة (لا حذف، التعديل يُسجَّل)';
+  el('saveTxButton').textContent = 'حفظ التعديل';
+  el('cancelEditButton').hidden = false;
+  el('txDate').value = t.at.slice(0, 16); el('txDirection').value = t.direction;
+  el('txAmount').value = fromMinor(t.amountMinor, t.currency); el('txCurrency').value = t.currency;
+  el('txInstrument').value = t.instrument; el('txNote').value = t.note; el('txReason').value = '';
+  el('formTitle').scrollIntoView();
+}
+
+function renderPending() {
+  const pending = state.transactions.filter((t) => t.merchantId === ui.merchantId && t.status === 'pending_review');
+  el('pendingCard').hidden = pending.length === 0;
+  el('pendingCount').textContent = pending.length;
+  el('pendingList').innerHTML = pending.map((t) => {
+    const source = state.messages.find((m) => m.id === t.sourceMessageId);
+    return `<div class="msg"><b>${DIRECTION_LABEL[t.direction]}</b> ${fromMinor(t.amountMinor, t.currency)} ${t.currency} — ${t.at.replace('T', ' ').slice(0, 16)}<br>
+      <span class="muted">الرسالة: ${escapeHtml(source ? source.text : '')}</span><br><span class="muted">${escapeHtml(t.note)}</span><br>
+      <button class="primary" data-confirm="${t.id}">صحيح</button> <button data-fix="${t.id}">تعديل</button> <button class="danger" data-reject="${t.id}">خطأ</button></div>`;
+  }).join('');
+}
+el('pendingList').addEventListener('click', (event) => {
+  const { confirm, fix, reject } = event.target.dataset;
+  const id = confirm || fix || reject;
+  if (!id) { return; }
+  const t = state.transactions.find((x) => x.id === id);
+  const now = new Date().toISOString();
+  if (fix) { startEdit(id); return; }
+  const before = { ...t };
+  t.status = confirm ? 'confirmed' : 'voided';
+  state.audit.push({ id: newId(), transactionId: id, action: confirm ? 'confirm' : 'void',
+    reason: confirm ? '' : 'رفضها التاجر (فهم خاطئ من الوكيل)', at: now, before, after: { ...t } });
+  saveState(); renderAll();
+});
+
+// ---------------------------------------------------------------- extraction agent (asks Claude through the page capability)
+
+// Built-in local agent: reads Arabic/Libyan chat text with fixed rules. No key, no internet.
+const CURRENCY_WORDS = [
+  ['KWD', /دينار\s*كويتي|KWD/i], ['BHD', /دينار\s*بحريني|BHD/i], ['JOD', /دينار\s*[اأ]ردني|JOD/i],
+  ['TND', /دينار\s*تونسي|TND/i], ['DZD', /دينار\s*جزائري|DZD/i], ['OMR', /ريال\s*عماني|OMR/i],
+  ['QAR', /ريال\s*قطري|QAR/i], ['SAR', /ريال|SAR/i], ['AED', /درهم\s*[اإ]ماراتي|AED/i],
+  ['MAD', /درهم\s*مغربي|MAD/i], ['EGP', /جنيه\s*مصري|EGP/i], ['SDG', /جنيه\s*سوداني|SDG/i],
+  ['GBP', /جنيه\s*[اإ]سترليني|استرليني|GBP|£/i], ['CHF', /فرنك|CHF/i], ['TRY', /ليرة|TRY/i],
+  ['CNY', /يوان|CNY/i], ['INR', /روبية\s*هندية|INR/i], ['PKR', /روبية|PKR/i], ['RUB', /روبل|RUB/i],
+  ['CAD', /دولار\s*كندي|CAD/i], ['AUD', /دولار\s*[اأ]سترالي|AUD/i],
+  ['EUR', /يورو|EUR|€/i], ['USD', /دولار|USD|\$/i], ['LYD', /دينار|د\.\s*ل|LYD/i],
+];
+const SENT_WORDS = /حولت|حوّلت|دفعت|سلمت|سلّمت|أرسلت|ارسلت|بعثت|وديت|سددت|نزلت|حطيت|عطيت|transferred|sent|paid/i;
+const RECEIVED_WORDS = /استلمت|استلمنا|وصلني|وصلتني|قبضت|جاني|جاتني|received/i;
+const THEY_SENT_TO_ME = /(حولت|دفعت|ارسلت|أرسلت)\s*(ل[كي])|وصلك|وصلتك/;
+function localExtract(batch, ownerNames) {
+  const items = [];
+  batch.forEach((m) => {
+    const text = normalizeLine(m.text);
+    const numberRe = /(\d[\d,]*(?:\.\d+)?)/g;
+    let found; const hits = [];
+    while ((found = numberRe.exec(text)) !== null) {
+      const around = text.slice(Math.max(0, found.index - 14), found.index + found[0].length + 18);
+      const hit = CURRENCY_WORDS.find(([, re]) => re.test(around));
+      if (hit) { hits.push({ amount: found[1].replace(/,/g, ''), currency: hit[0] }); }
+    }
+    if (hits.length !== 1) { return; }
+    const sentVerb = SENT_WORDS.test(text), recvVerb = RECEIVED_WORDS.test(text);
+    if (!sentVerb && !recvVerb) { return; }
+    const isOwner = m.sender && ownerNames.some((n) => m.sender.includes(n) || n.includes(m.sender));
+    let direction;
+    if (m.sender) {
+      direction = (sentVerb && !recvVerb) ? (isOwner ? 'sent' : 'received') : (isOwner ? 'received' : 'sent');
+      if (!isOwner && THEY_SENT_TO_ME.test(text)) { direction = 'received'; }
+    } else { direction = sentVerb ? 'sent' : 'received'; }
+    const instrument = /صك/.test(text) ? 'certified_cheque' : /كاش|نقد|cash/i.test(text) ? 'cash' : /حوالة|تحويل|بنك|مصرف|حولت|حوّلت/.test(text) ? 'bank_transfer' : 'unknown';
+    items.push({ source_message_ids: [m.id], occurred_at: m.at, amount: hits[0].amount, currency: hits[0].currency, direction,
+      instrument, confidence: m.sender ? 0.85 : 0.5, evidence: m.text.slice(0, 120), note: 'استخراج المحلل المدمج' });
+  });
+  return items;
+}
+
+const BATCH_SIZE = 40;
+let askClaude = null;
+let stopController = null;
+if (window.claude && window.claude.use) {
+  window.claude.use('sample').then((fn) => { askClaude = fn; renderAgent(); }).catch(() => {});
+}
+function setAgentReport(text) { el('agentReport').textContent = text; }
+function renderAgent() {
+  renderStatusBar();
+  const merchant = state.merchants.find((m) => m.id === ui.merchantId);
+  el('ownerNameInput').value = merchant && merchant.ownerNames ? merchant.ownerNames.join('، ') : '';
+  el('autoConfirmInput').checked = state.settings.autoConfirmOk;
+  el('analyzeButton').disabled = !merchant || stopController !== null;
+}
+
+// Data-entry agent: the only code that writes agent proposals into the ledger.
+function enterProposal(merchantId, proposal, verdict) {
+  const now = new Date().toISOString();
+  const logEntry = { id: newId(), merchantId, at: now, proposal, verdict: verdict.status, reasons: verdict.reasons, transactionId: null };
+  if (verdict.status !== 'reject') {
+    const confirmNow = verdict.status === 'ok' && state.settings.autoConfirmOk;
+    const note = [proposal.note, verdict.reasons.length ? 'تحقق: ' + verdict.reasons.join('، ') : ''].filter(Boolean).join(' | ');
+    const transaction = {
+      id: newId(), merchantId, at: proposal.at, amountMinor: toMinor(proposal.amount, proposal.currency),
+      currency: proposal.currency, direction: proposal.direction, instrument: proposal.instrument, note,
+      status: confirmNow ? 'confirmed' : 'pending_review', origin: 'agent',
+      sourceMessageId: proposal.sourceMessageIds[0], createdAt: now,
+    };
+    state.transactions.push(transaction);
+    state.audit.push({ id: newId(), transactionId: transaction.id, action: 'create', actor: 'agent', reason: '', at: now, before: null, after: { ...transaction } });
+    logEntry.transactionId = transaction.id;
+  }
+  state.agentLog.push(logEntry);
+}
+
+async function analyzeNewMessages() {
+  const merchant = state.merchants.find((m) => m.id === ui.merchantId);
+  if (!merchant) { return; }
+  const useLocal = !askClaude && !state.settings.apiKey;
+  const ask = askClaude || createApiKeyAsker();
+  const ownerNames = el('ownerNameInput').value.split(/[,،]/).map((name) => name.trim()).filter(Boolean);
+  if (ownerNames.length === 0) { setAgentReport('اكتب اسمك كما يظهر في المحادثة أولًا، حتى يعرف الوكيل اتجاه كل حوالة.'); return; }
+  merchant.ownerNames = ownerNames;
+  state.settings.autoConfirmOk = el('autoConfirmInput').checked;
+  saveState();
+
+  const ordered = state.messages.filter((m) => m.merchantId === merchant.id).sort((a, b) => a.at.localeCompare(b.at));
+  const todo = ordered.filter((m) => !m.analyzed);
+  if (todo.length === 0) { setAgentReport('لا توجد رسائل جديدة للتحليل.'); return; }
+
+  const messageTexts = {};
+  ordered.forEach((m) => { messageTexts[m.id] = m.text; });
+  const tomorrow = new Date(Date.now() + 86400000);
+  const latestAllowedIso = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T23:59:59`;
+
+  stopController = new AbortController();
+  el('stopButton').hidden = false; renderAgent();
+  const totals = { proposed: 0, ok: 0, needs_review: 0, reject: 0, problems: 0 };
+  try {
+    for (let start = 0; start < todo.length; start += BATCH_SIZE) {
+      const batch = todo.slice(start, start + BATCH_SIZE);
+      const firstIndex = ordered.indexOf(batch[0]);
+      const context = ordered.slice(Math.max(0, firstIndex - 8), firstIndex);
+      setAgentReport(`جارٍ التحليل… ${Math.min(start + BATCH_SIZE, todo.length)} من ${todo.length} رسالة`);
+      const answer = useLocal ? { text: JSON.stringify(localExtract(batch, ownerNames)) }
+        : await ask(buildExtractionPrompt(batch, context, ownerNames), { modelTier: 'default', signal: stopController.signal, cache: false });
+      const parsed = parseExtractorOutput(answer.text, batch.map((m) => m.id));
+      if (parsed.unusable) { throw { code: 'bad_output', message: parsed.problems[0] }; }
+      totals.problems += parsed.problems.length;
+      for (const proposal of parsed.proposals) {
+        const verdict = verifyProposal(proposal, messageTexts, state.transactions, merchant.id, latestAllowedIso);
+        enterProposal(merchant.id, proposal, verdict);
+        totals.proposed += 1; totals[verdict.status] += 1;
+      }
+      batch.forEach((m) => { m.analyzed = true; });   // only after the batch was handled
+      saveState(); renderAll();
+    }
+    setAgentReport(`انتهى التحليل: ${totals.proposed} معاملة مقترحة (${totals.ok} سليمة، ${totals.needs_review} تحتاج مراجعة، ${totals.reject} رُفضت من التحقق)`
+      + (totals.problems ? `، و${totals.problems} عنصرًا مكسورًا تجاهلته` : '') + '. راجع «بانتظار مراجعتك».');
+  } catch (error) {
+    const aborted = stopController && stopController.signal.aborted;
+    const reasons = { not_granted: 'لم تسمح باستخدام Claude، فلا يمكن للوكيل العمل.', rate_limited: 'تجاوزت الحد المؤقت، حاول بعد قليل.',
+      bad_output: 'ردّ النموذج لم يكن بالصيغة المطلوبة، فلم أسجّل شيئًا من هذه الدفعة. حاول مرة أخرى.',
+      no_key: 'أدخل مفتاح Anthropic في «إعدادات الوكيل» أولًا.', bad_key: 'المفتاح مرفوض. تأكد منه في «إعدادات الوكيل».' };
+    setAgentReport((aborted ? 'تم الإيقاف.' : (reasons[error.code] || 'تعذّر التحليل: ' + (error.message || 'خطأ غير معروف')))
+      + ' ما اكتمل منه محفوظ، والرسائل التي لم تُحلَّل ستُحلَّل في المرة القادمة.');
+  } finally {
+    stopController = null; el('stopButton').hidden = true; renderAgent();
+  }
+}
+el('analyzeButton').addEventListener('click', analyzeNewMessages);
+el('stopButton').addEventListener('click', () => { if (stopController) { stopController.abort(); } });
+
+// ---------------------------------------------------------------- status bar, storage protection, backup
+let storageProtection = 'غير معروفة';
+function renderStatusBar() {
+  const agent = askClaude ? 'مفعّل وجاهز ✓' : state.settings.apiKey ? 'مفعّل وجاهز ✓ (بمفتاحك)' : 'المحلل المدمج مفعّل ✓ (بدون مفتاح وبدون إنترنت)';
+  el('statusBar').textContent = `وكيل الذكاء الاصطناعي: ${agent} — حماية التخزين: ${storageProtection}`;
+}
+if (navigator.storage && navigator.storage.persist) {
+  navigator.storage.persist().then((granted) => {
+    storageProtection = granted ? 'مفعّلة (المتصفح لن يمسح البيانات عند ضيق المساحة)' : 'غير مضمونة (قد يمسحها المتصفح) — احفظ نسخًا احتياطية';
+    renderStatusBar();
+  }).catch(() => {});
+}
+
+let downloadsApi = null;
+if (window.claude && window.claude.use) {
+  window.claude.use('downloads').then((api) => { downloadsApi = api; renderBackupStatus(); }).catch(() => {});
+}
+async function saveBackupFile(filename, text) {
+  if (downloadsApi) { await downloadsApi.save({ filename, data: text }); return; }
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+  link.download = filename;
+  document.body.appendChild(link); link.click(); link.remove();
+}
+function renderBackupStatus() {
+  const last = state.settings.lastBackupAt;
+  const ageInDays = last ? (Date.now() - new Date(last).getTime()) / 86400000 : null;
+  el('backupStatus').textContent = last
+    ? `آخر نسخة احتياطية: ${last.slice(0, 16).replace('T', ' ')}` + (ageInDays > 7 ? ' (مضى أكثر من أسبوع، احفظ نسخة جديدة)' : '')
+    : 'لم تحفظ أي نسخة احتياطية بعد. احفظ واحدة الآن: هي ما يحمي بياناتك لو مُسح المتصفح.';
+  el('backupButton').disabled = !downloadsApi && Boolean(window.claude);   // inside the viewer a save needs its capability
+}
+el('backupButton').addEventListener('click', async () => {
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+  try {
+    const exported = { ...state, settings: { ...state.settings, apiKey: undefined } };
+    await saveBackupFile(`almasar-backup-${stamp}.json`,
+      JSON.stringify({ app: 'almasar-web', version: 1, exportedAt: new Date().toISOString(), state: exported }));
+    state.settings.lastBackupAt = new Date().toISOString();
+    saveState(); renderBackupStatus();
+    el('backupReport').textContent = 'تم حفظ النسخة. تأكد أنها في مكان آمن خارج المتصفح.';
+  } catch (error) {
+    el('backupReport').textContent = error.code === 'declined' ? 'ألغيت الحفظ.' : 'تعذّر الحفظ: ' + (error.message || error.code);
+  }
+});
+el('restoreButton').addEventListener('click', () => el('restoreFile').click());
+el('restoreFile').addEventListener('change', async (event) => {
+  const file = event.target.files[0];
+  if (!file) { return; }
+  try {
+    const backup = JSON.parse(await file.text());
+    if (backup.app !== 'almasar-web' || !backup.state) { throw new Error('not a backup'); }
+    const added = mergeBackup(state, backup.state);
+    saveState(); renderAll(); renderBackupStatus();
+    el('backupReport').textContent = `تمت الاستعادة بالإضافة فقط (لم يُمسح شيء): ${added.merchants} تاجر، ${added.messages} رسالة، ${added.transactions} معاملة.`;
+  } catch (error) {
+    el('backupReport').textContent = 'هذا الملف ليس نسخة احتياطية صالحة من هذا التطبيق.';
+  }
+  event.target.value = '';
+});
+
+// ---------------------------------------------------------------- agent access with the owner's own API key
+function createApiKeyAsker() {
+  return async (prompt, options) => {
+    const apiKey = state.settings.apiKey;
+    if (!apiKey) { throw { code: 'no_key', message: 'لا يوجد مفتاح' }; }
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', signal: options && options.signal,
+      headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true' },
+      body: JSON.stringify({ model: state.settings.model || DEFAULT_MODEL, max_tokens: 4096, messages: [{ role: 'user', content: prompt }] }),
+    });
+    if (!response.ok) {
+      const detail = (await response.text()).slice(0, 200);
+      throw { code: response.status === 401 ? 'bad_key' : response.status === 429 ? 'rate_limited' : 'api_error', message: `خطأ ${response.status}: ${detail}` };
+    }
+    const data = await response.json();
+    return { text: (data.content || []).filter((block) => block.type === 'text').map((block) => block.text).join(''), truncated: data.stop_reason === 'max_tokens' };
+  };
+}
+el('saveSettingsButton').addEventListener('click', () => {
+  state.settings.apiKey = el('apiKeyInput').value.trim();
+  state.settings.model = el('modelInput').value.trim();
+  saveState(); renderStatusBar(); renderAgent();
+  el('settingsReport').textContent = state.settings.apiKey ? 'تم الحفظ على هذا الجهاز.' : 'تم مسح المفتاح.';
+});
+
+// ---------------------------------------------------------------- chats shared from WhatsApp (arrive through the service worker)
+function guessMerchantName(fileName) {
+  const match = /(?:WhatsApp Chat with|محادثة WhatsApp مع|محادثة واتساب مع)\s+(.+?)(?:\.txt)?$/i.exec(fileName || '');
+  return match ? match[1].trim() : '';
+}
+function renderInbox(items) {
+  el('inboxCard').hidden = items.length === 0;
+  const currentName = (state.merchants.find((m) => m.id === ui.merchantId) || {}).name || '';
+  el('inboxList').innerHTML = items.map((item) => `<div class="msg"><b>${escapeHtml(item.name || 'نص')}</b> — ${item.text.length} حرفًا
+    <label>اسم التاجر (يُنشأ إن لم يكن موجودًا)</label>
+    <input data-name-for="${item.id}" value="${escapeHtml(guessMerchantName(item.name) || currentName)}">
+    <p><button class="primary" data-import-inbox="${item.id}">استيراد</button></p></div>`).join('');
+}
+async function checkSharedInbox() {
+  try { renderInbox(await runRequest('inbox', 'readonly', (store) => store.getAll())); } catch (error) { /* no inbox yet */ }
+}
+el('inboxList').addEventListener('click', async (event) => {
+  const id = event.target.dataset.importInbox;
+  if (!id) { return; }
+  const items = await runRequest('inbox', 'readonly', (store) => store.getAll());
+  const item = items.find((candidate) => candidate.id === id);
+  const name = document.querySelector(`[data-name-for="${id}"]`).value.trim();
+  if (!item || !name) { return; }
+  let merchant = state.merchants.find((m) => m.name === name);
+  if (!merchant) { merchant = { id: newId(), name, createdAt: new Date().toISOString() }; state.merchants.push(merchant); }
+  ui.merchantId = merchant.id;
+  importChat(item.text);
+  saveState(); renderAll();
+  await writeChain;   // the staging copy is removed only after the messages are safely stored
+  await runRequest('inbox', 'readwrite', (store) => store.delete(id));
+  await checkSharedInbox();
+});
+
+// ---------------------------------------------------------------- start
+function renderAll() { renderMerchants(); renderPending(); renderStatement(); renderMessages(); renderAgent(); renderBackupStatus(); }
+function fillCurrencies() {
+  el('txCurrency').innerHTML = Object.keys(CURRENCY_DECIMALS).map((c) => `<option value="${c}">${c} — ${CURRENCY_NAMES[c]}</option>`).join('');
+}
+async function startApp() {
+  fillCurrencies();
+  await loadState();
+  ui.merchantId = state.merchants.length ? state.merchants[0].id : null;
+  el('apiKeyInput').value = state.settings.apiKey || '';
+  el('modelInput').value = state.settings.model || '';
+  resetForm();
+  renderAll();
+  await checkSharedInbox();
+  if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').catch(() => {}); }
+}
+startApp();
+
+// ===== v3 navigation: groups the existing cards into four tabs =====
+const TAB_CARDS = { merchants: [2, 3], ledger: [6], add: [7], agent: [0, 4, 5, 8], settings: [1, 9, 10] };
+const TAB_KEY = 'almasar_tab';
+function showTab(name) {
+  const cards = Array.from(document.querySelectorAll('main > .card')).filter((c) => c.id !== 'statusBar');
+  Object.entries(TAB_CARDS).forEach(([tab, indexes]) => indexes.forEach((i) => { if (cards[i]) { cards[i].classList.toggle('tab-off', tab !== name); } }));
+  document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === (name === 'ledger' ? 'merchants' : name)));
+  try { sessionStorage.setItem(TAB_KEY, name); } catch (e) { /* storage may be blocked */ }
+  window.scrollTo({ top: 0 });
+}
+function updateBadge() {
+  const count = Number((el('pendingCount') || {}).textContent) || 0;
+  el('pendingBadge').hidden = count === 0; el('pendingBadge').textContent = count;
+}
+document.querySelectorAll('#tabs button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
+{ const cards = Array.from(document.querySelectorAll('main > .card')).filter((c) => c.id !== 'statusBar');
+  if (cards.length === 11) { cards[6].classList.add('print-ok'); } }
+const originalRenderAll = renderAll;
