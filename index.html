@@ -78,6 +78,15 @@ table tr:nth-child(even) td{background:color-mix(in srgb,var(--bg) 40%,transpare
 <main>
 <header class="appbar"><div class="brand"><div class="logo"><img src="icon-192.png" alt=""></div><div><h1>المسار للحوالات</h1><small>دفتر حوالاتك مع التجار — محفوظ على جوالك</small></div></div></header>
 <div id="statusBar" class="card noprint muted"></div>
+<div class="card noprint" id="cloudSyncCard">
+  <h2>الربط التلقائي مع واتساب للأعمال</h2>
+  <p class="muted">يربط هذا الجهاز بخادم استقبال WhatsApp Business Cloud API. لا يقرأ حساب واتساب الشخصي أو المحادثات القديمة.</p>
+  <label>عنوان الخادم</label><input id="cloudBaseUrl" type="url" placeholder="https://your-service.onrender.com">
+  <label>رمز الاقتران لمرة واحدة</label><input id="cloudPairCode" type="password" autocomplete="one-time-code" placeholder="أدخله عند الربط الأول فقط">
+  <p class="row"><button id="cloudPairButton" class="primary">ربط هذا الجهاز</button><button id="cloudSyncButton">مزامنة الآن</button><button id="cloudUnpairButton">فصل الجهاز</button></p>
+  <div id="cloudSyncReport" class="muted" aria-live="polite"></div>
+  <div id="cloudUnmatched"></div>
+</div>
 <div class="card noprint" id="inboxCard" hidden>
   <h2>محادثة وصلتك من واتساب</h2>
   <div id="inboxList"></div>
@@ -877,7 +886,7 @@ function renderBackupStatus() {
 el('backupButton').addEventListener('click', async () => {
   const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
   try {
-    const exported = { ...state, settings: { ...state.settings, apiKey: undefined } };
+    const exported = { ...state, settings: { ...state.settings, apiKey: undefined, cloudBridge: undefined } };
     await saveBackupFile(`almasar-backup-${stamp}.json`,
       JSON.stringify({ app: 'almasar-web', version: 1, exportedAt: new Date().toISOString(), state: exported }));
     state.settings.lastBackupAt = new Date().toISOString();
@@ -960,7 +969,135 @@ el('inboxList').addEventListener('click', async (event) => {
   await writeChain;   // the staging copy is removed only after the messages are safely stored
   await runRequest('inbox', 'readwrite', (store) => store.delete(id));
   await checkSharedInbox();
+  initCloudBridge();
 });
+
+
+// ===== Official WhatsApp Cloud bridge: device pairing + safe incremental sync =====
+const CLOUD_SETTINGS_KEY = 'cloudBridge';
+function cloudSettings() { return state.settings[CLOUD_SETTINGS_KEY] || {}; }
+function cloudBase() { return String(el('cloudBaseUrl').value || cloudSettings().baseUrl || '').trim().replace(/\/+$/, ''); }
+function cloudReport(message) { el('cloudSyncReport').textContent = message; }
+function cloudAuthHeaders() { return { 'authorization': 'Bearer ' + cloudSettings().token, 'accept': 'application/json' }; }
+async function cloudPair() {
+  const base = cloudBase();
+  const code = el('cloudPairCode').value.trim();
+  if (!/^https:\/\//i.test(base) || !code) { cloudReport('أدخل رابط HTTPS ورمز الاقتران.'); return; }
+  el('cloudPairButton').disabled = true;
+  try {
+    const response = await fetch(base + '/pair', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ code, device_name: 'almasar-pwa' }) });
+    const data = await response.json();
+    if (!response.ok || !data.token) throw new Error(data.error || 'pair_failed');
+    state.settings[CLOUD_SETTINGS_KEY] = { baseUrl: base, token: data.token, cursor: 0, pairedAt: new Date().toISOString() };
+    el('cloudPairCode').value = '';
+    saveState(); await writeChain;
+    cloudReport('تم ربط هذا الجهاز. بدأت المزامنة الأولية.');
+    await syncCloudMessages();
+  } catch (error) { cloudReport('تعذّر الربط: ' + (error.message || 'خطأ اتصال')); }
+  finally { el('cloudPairButton').disabled = false; }
+}
+function remoteMessageText(item) {
+  const text = String(item.message_text || '').trim();
+  if (text) return text;
+  const media = item.media || {};
+  if (media.type === 'audio') return '[رسالة صوتية — المرفق محفوظ على الخادم ويحتاج مرحلة التفريغ الصوتي]';
+  if (media.type === 'image') return '[صورة واتساب — تحتاج مرحلة قراءة الصورة OCR]';
+  if (media.type === 'document') return '[مستند واتساب: ' + String(media.filename || 'بدون اسم') + ']';
+  if (media.type === 'video') return '[مقطع فيديو واتساب]';
+  return '[رسالة واتساب من النوع: ' + String(item.message_type || 'غير معروف') + ']';
+}
+function findRemoteMerchant(item) {
+  const contact = String(item.contact_name || '').trim().toLocaleLowerCase();
+  const phone = String(item.contact_wa_id || '').replace(/\D/g, '');
+  return state.merchants.find(m => {
+    const names = [m.name, m.whatsappName].filter(Boolean).map(x => String(x).trim().toLocaleLowerCase());
+    const phones = [m.whatsappPhone, m.phone].filter(Boolean).map(x => String(x).replace(/\D/g, ''));
+    return (contact && names.includes(contact)) || (phone && phones.includes(phone));
+  }) || null;
+}
+function addRemoteMessage(item, merchant) {
+  if (state.messages.some(m => m.externalId === item.wamid)) return false;
+  const date = item.message_timestamp ? new Date(item.message_timestamp) : new Date(item.received_at || Date.now());
+  const at = Number.isNaN(date.getTime()) ? new Date().toISOString().slice(0,16) : date.toISOString().slice(0,16);
+  const text = remoteMessageText(item);
+  state.messages.push({
+    id: newId(), externalId: item.wamid, merchantId: merchant.id,
+    key: 'wa-cloud|' + item.wamid, at, sender: item.contact_name || item.contact_wa_id || 'واتساب للأعمال',
+    text, freeText: true, analyzed: false, source: 'whatsapp-cloud',
+    media: item.media || null, rawMessageType: item.message_type || 'unknown'
+  });
+  return true;
+}
+function renderRemoteUnmatched() {
+  const host = el('cloudUnmatched');
+  const queue = state.remoteInbox || [];
+  if (!queue.length) { host.innerHTML = ''; return; }
+  host.innerHTML = '<h3>رسائل تحتاج ربطها بتاجر (' + queue.length + ')</h3>' + queue.map((item, index) =>
+    '<div class="msg"><b>' + escapeHtml(item.contact_name || item.contact_wa_id || 'جهة غير معروفة') + '</b><p>' + escapeHtml(remoteMessageText(item)) +
+    '</p><label>اختر التاجر</label><select data-remote-merchant="' + index + '"><option value="">اختر…</option>' +
+    state.merchants.map(m => '<option value="' + escapeHtml(m.id) + '">' + escapeHtml(m.name) + '</option>').join('') +
+    '</select> <button type="button" data-remote-accept="' + index + '">ربط وحفظ الرسالة</button></div>').join('');
+}
+el('cloudUnmatched').addEventListener('click', event => {
+  const raw = event.target.dataset.remoteAccept;
+  if (raw === undefined) return;
+  const index = Number(raw), item = (state.remoteInbox || [])[index];
+  const select = el('cloudUnmatched').querySelector('[data-remote-merchant="' + index + '"]');
+  const merchant = state.merchants.find(m => m.id === select.value);
+  if (!item || !merchant) { cloudReport('اختر تاجرًا أولًا.'); return; }
+  addRemoteMessage(item, merchant);
+  state.remoteInbox.splice(index, 1);
+  saveState(); renderAll(); renderRemoteUnmatched();
+  cloudReport('حُفظت الرسالة في سجل التاجر، وهي جاهزة للتحليل.');
+});
+async function syncCloudMessages() {
+  const cfg = cloudSettings();
+  const base = String(cfg.baseUrl || '').replace(/\/+$/, '');
+  if (!base || !cfg.token) { cloudReport('اربط الجهاز أولًا.'); return; }
+  el('cloudSyncButton').disabled = true;
+  let cursor = Number(cfg.cursor || 0), received = 0, added = 0, queued = 0;
+  try {
+    for (let page = 0; page < 10; page++) {
+      const response = await fetch(base + '/messages?status=all&limit=100&after=' + cursor, { headers: cloudAuthHeaders() });
+      if (response.status === 401) throw new Error('انتهت صلاحية الربط أو أُلغي رمز الجهاز.');
+      if (!response.ok) throw new Error('server_' + response.status);
+      const data = await response.json(), items = Array.isArray(data.messages) ? data.messages : [];
+      if (!items.length) break;
+      for (const item of items) {
+        received++;
+        if (state.messages.some(m => m.externalId === item.wamid) || (state.remoteInbox || []).some(m => m.wamid === item.wamid)) continue;
+        const merchant = findRemoteMerchant(item);
+        if (merchant) { if (addRemoteMessage(item, merchant)) added++; }
+        else { state.remoteInbox = state.remoteInbox || []; state.remoteInbox.push(item); queued++; }
+      }
+      const next = Number(data.next_cursor || cursor);
+      if (!(next > cursor)) break;
+      cursor = next;
+      state.settings[CLOUD_SETTINGS_KEY].cursor = cursor;
+      saveState(); await writeChain;
+      if (items.length < 100) break;
+    }
+    saveState(); await writeChain;
+    renderAll(); renderRemoteUnmatched();
+    cloudReport('اكتملت المزامنة: ' + received + ' رسالة مستلمة، ' + added + ' أضيفت للتجار المطابقين، ' + queued + ' تنتظر ربطها بتاجر.');
+  } catch (error) { cloudReport('توقفت المزامنة: ' + (error.message || 'خطأ اتصال') + ' — سيُعاد المحاولة لاحقًا.'); }
+  finally { el('cloudSyncButton').disabled = false; }
+}
+el('cloudPairButton').addEventListener('click', cloudPair);
+el('cloudSyncButton').addEventListener('click', syncCloudMessages);
+el('cloudUnpairButton').addEventListener('click', () => {
+  const cfg = cloudSettings();
+  state.settings[CLOUD_SETTINGS_KEY] = { baseUrl: cfg.baseUrl || '', token: '', cursor: 0 };
+  saveState(); cloudReport('فُصل هذا الجهاز محليًا. يجب إلغاء رمز الجهاز من الخادم أيضًا لإبطاله نهائيًا.');
+});
+function initCloudBridge() {
+  const cfg = cloudSettings();
+  el('cloudBaseUrl').value = cfg.baseUrl || '';
+  renderRemoteUnmatched();
+  if (cfg.token) syncCloudMessages();
+}
+window.addEventListener('online', () => { if (cloudSettings().token) syncCloudMessages(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && cloudSettings().token) syncCloudMessages(); });
 
 // ---------------------------------------------------------------- start
 function renderAll() { renderMerchants(); renderPending(); renderStatement(); renderMessages(); renderAgent(); renderBackupStatus(); }
