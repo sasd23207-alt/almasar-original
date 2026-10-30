@@ -11,6 +11,7 @@ const VERIFY_TOKEN = process.env.META_VERIFY_TOKEN;
 const APP_SECRET = process.env.META_APP_SECRET;
 const DATABASE_URL = process.env.DATABASE_URL;
 const ACCESS_TOKEN = process.env.WEBHOOK_READ_TOKEN;
+const PAIRING_CODE = process.env.PAIRING_CODE;
 const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
 const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION;
 const pool = DATABASE_URL ? new Pool({
@@ -30,9 +31,14 @@ function constantTimeEqual(left, right) {
   const b = Buffer.from(String(right || ""));
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
-function authorized(req) {
+async function authorized(req) {
   const supplied = req.headers.authorization || "";
-  return !!ACCESS_TOKEN && constantTimeEqual(supplied, "Bearer " + ACCESS_TOKEN);
+  const token = supplied.startsWith("Bearer ") ? supplied.slice(7) : "";
+  if (!token || !pool) return false;
+  if (ACCESS_TOKEN && constantTimeEqual(supplied, "Bearer " + ACCESS_TOKEN)) return true;
+  const hash = crypto.createHash("sha256").update(token).digest("hex");
+  const found = await pool.query("SELECT 1 FROM whatsapp_device_tokens WHERE token_sha256=$1 AND revoked_at IS NULL", [hash]);
+  return found.rowCount > 0;
 }
 function validSignature(raw, signature, secret = APP_SECRET) {
   if (!secret || !signature || !signature.startsWith("sha256=")) return false;
@@ -209,19 +215,41 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { received: true });
     }
 
+    if (route(req, res, "/pair", "POST")) {
+      if (!pool || !PAIRING_CODE) return send(res, 503, { error: "pairing_not_configured" });
+      const body = await readJson(req);
+      if (!constantTimeEqual(body.code, PAIRING_CODE)) return send(res, 403, { error: "invalid_pairing_code" });
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        const consumed = await client.query(
+          "INSERT INTO whatsapp_pairing_state (id, consumed_at) VALUES (1, NOW()) ON CONFLICT (id) DO NOTHING RETURNING id"
+        );
+        if (!consumed.rowCount) { await client.query("ROLLBACK"); return send(res, 409, { error: "pairing_code_already_used" }); }
+        const token = crypto.randomBytes(32).toString("base64url");
+        const hash = crypto.createHash("sha256").update(token).digest("hex");
+        await client.query("INSERT INTO whatsapp_device_tokens (token_sha256, device_name) VALUES ($1,$2)", [hash, String(body.device_name || "PWA").slice(0,120)]);
+        await client.query("COMMIT");
+        return send(res, 201, { token, paired: true });
+      } catch (error) { await client.query("ROLLBACK"); throw error; }
+      finally { client.release(); }
+    }
+
     if (req.method === "GET" && url.pathname === "/messages") {
-      if (!authorized(req)) return send(res, 401, { error: "unauthorized" });
+      if (!(await authorized(req))) return send(res, 401, { error: "unauthorized" });
       if (!pool) return send(res, 503, { error: "database_not_configured" });
       const limit = Math.min(500, Math.max(1, Number(url.searchParams.get("limit") || 100)));
       const status = url.searchParams.get("status") || "new";
       const allowed = ["new", "processing", "processed", "review", "all"];
       if (!allowed.includes(status)) return send(res, 400, { error: "invalid_status" });
+      const cursor = Math.max(0, Number(url.searchParams.get("after") || 0));
       const query = status === "all"
-        ? "SELECT wamid, phone_number_id, business_display_phone, contact_wa_id, contact_name, message_type, message_text, message_timestamp, media, raw_payload, received_at, processing_status FROM whatsapp_messages ORDER BY received_at ASC LIMIT $1"
-        : "SELECT wamid, phone_number_id, business_display_phone, contact_wa_id, contact_name, message_type, message_text, message_timestamp, media, raw_payload, received_at, processing_status FROM whatsapp_messages WHERE processing_status=$1 ORDER BY received_at ASC LIMIT $2";
-      const values = status === "all" ? [limit] : [status, limit];
+        ? "SELECT id, wamid, phone_number_id, business_display_phone, contact_wa_id, contact_name, message_type, message_text, message_timestamp, media, raw_payload, received_at, processing_status FROM whatsapp_messages WHERE id>$1 ORDER BY id ASC LIMIT $2"
+        : "SELECT id, wamid, phone_number_id, business_display_phone, contact_wa_id, contact_name, message_type, message_text, message_timestamp, media, raw_payload, received_at, processing_status FROM whatsapp_messages WHERE processing_status=$1 AND id>$2 ORDER BY id ASC LIMIT $3";
+      const values = status === "all" ? [cursor, limit] : [status, cursor, limit];
       const result = await pool.query(query, values);
-      return send(res, 200, { messages: result.rows });
+      const nextCursor = result.rows.length ? result.rows[result.rows.length - 1].id : cursor;
+      return send(res, 200, { messages: result.rows, next_cursor: Number(nextCursor) });
     }
 
     const statusMatch = url.pathname.match(/^\/messages\/([^/]+)\/status$/);
