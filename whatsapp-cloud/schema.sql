@@ -43,3 +43,17 @@ CREATE TABLE IF NOT EXISTS whatsapp_webhook_receipts (
   payload_sha256 TEXT PRIMARY KEY,
   received_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+
+-- One-time device pairing and per-device credentials.
+CREATE TABLE IF NOT EXISTS whatsapp_pairing_state (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  consumed_at TIMESTAMPTZ NOT NULL
+);
+CREATE TABLE IF NOT EXISTS whatsapp_device_tokens (
+  id BIGSERIAL PRIMARY KEY,
+  token_sha256 TEXT NOT NULL UNIQUE,
+  device_name TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  revoked_at TIMESTAMPTZ
+);
