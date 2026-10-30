@@ -998,3 +998,49 @@ document.querySelectorAll('#tabs button').forEach((b) => b.addEventListener('cli
 { const cards = Array.from(document.querySelectorAll('main > .card')).filter((c) => c.id !== 'statusBar');
   if (cards.length === 11) { cards[6].classList.add('print-ok'); } }
 const originalRenderAll = renderAll;
+renderAll = function () { originalRenderAll(); updateBadge(); renderMerchantList(); };
+const originalStartEdit = startEdit;
+startEdit = function (id) { originalStartEdit(id); showTab('add'); };
+let firstTab = 'merchants';
+try { firstTab = sessionStorage.getItem(TAB_KEY) || 'merchants'; } catch (e) { /* ignore */ }
+if (/[?&]shared=1/.test(location.search)) { firstTab = 'agent'; }
+showTab(firstTab);
+
+// ===== v3.1 merchants list: tap a merchant to open his statement =====
+function balanceLines(closing) {
+  const parts = Object.keys(closing).sort().filter((c) => closing[c] !== 0).map((c) => closing[c] > 0
+    ? `<span class="pos">هو عليه لك: <bdi dir="ltr">${fromMinor(closing[c], c)} ${c}</bdi></span>`
+    : `<span class="neg">أنت عليك له: <bdi dir="ltr">${fromMinor(-closing[c], c)} ${c}</bdi></span>`);
+  return parts.length ? parts.join('') : '<span class="dim">لا يوجد رصيد</span>';
+}
+function renderMerchantList() {
+  const query = el('merchantSearch').value.trim();
+  const owed = {}, owe = {};
+  state.merchants.forEach((m) => {
+    const closing = buildStatement(state.transactions, m.id, null, null).closing;
+    Object.keys(closing).forEach((c) => { if (closing[c] > 0) { owed[c] = (owed[c] || 0) + closing[c]; } else if (closing[c] < 0) { owe[c] = (owe[c] || 0) - closing[c]; } });
+  });
+  const total = (t) => Object.keys(t).sort().map((c) => `<bdi dir="ltr">${fromMinor(t[c], c)} ${c}</bdi>`).join(' ، ') || 'لا شيء';
+  el('merchantsSummary').innerHTML = state.merchants.length ? `إجمالي ما لك عند التجار: <b class="pos">${total(owed)}</b><br>إجمالي ما عليك لهم: <b class="neg">${total(owe)}</b>` : 'لم تضف أي تاجر بعد. أضف أول تاجر من البطاقة التالية.';
+  const shown = state.merchants.filter((m) => !query || m.name.includes(query)).sort((a, b) => a.name.localeCompare(b.name, 'ar'));
+  el('merchantList').innerHTML = shown.map((m) => {
+    const closing = buildStatement(state.transactions, m.id, null, null).closing;
+    const pending = state.transactions.filter((t) => t.merchantId === m.id && t.status === 'pending_review').length;
+    return `<button type="button" class="mrow" data-id="${m.id}"><b>${escapeHtml(m.name)}</b>${balanceLines(closing)}${pending ? `<span class="muted">${pending} بانتظار المراجعة</span>` : ''}</button>`;
+  }).join('');
+  const current = state.merchants.find((m) => m.id === ui.merchantId);
+  el('mhName').textContent = current ? current.name : '';
+  const addFor = el('addFor') || (() => { const p = document.createElement('p'); p.id = 'addFor'; el('formTitle').after(p); return p; })();
+  addFor.textContent = current ? 'للتاجر: ' + current.name : 'اختر تاجرًا من قائمة التجار أولًا';
+}
+el('merchantSearch').addEventListener('input', renderMerchantList);
+el('merchantList').addEventListener('click', (event) => {
+  const row = event.target.closest('.mrow'); if (!row) { return; }
+  ui.merchantId = row.dataset.id; resetForm(); renderAll(); showTab('ledger');
+});
+el('backToMerchants').addEventListener('click', () => showTab('merchants'));
+el('mhAdd').addEventListener('click', () => showTab('add'));
+renderMerchantList();
+</script>
+</body>
+</html>
