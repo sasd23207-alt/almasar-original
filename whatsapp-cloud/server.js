@@ -34,9 +34,9 @@ function authorized(req) {
   const supplied = req.headers.authorization || "";
   return !!ACCESS_TOKEN && constantTimeEqual(supplied, "Bearer " + ACCESS_TOKEN);
 }
-function validSignature(raw, signature) {
-  if (!APP_SECRET || !signature || !signature.startsWith("sha256=")) return false;
-  const expected = "sha256=" + crypto.createHmac("sha256", APP_SECRET).update(raw).digest("hex");
+function validSignature(raw, signature, secret = APP_SECRET) {
+  if (!secret || !signature || !signature.startsWith("sha256=")) return false;
+  const expected = "sha256=" + crypto.createHmac("sha256", secret).update(raw).digest("hex");
   return constantTimeEqual(expected, signature);
 }
 async function readBody(req, maxBytes = 5 * 1024 * 1024) {
