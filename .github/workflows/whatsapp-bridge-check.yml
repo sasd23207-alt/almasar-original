@@ -3,26 +3,29 @@ name: WhatsApp bridge checks
 on:
   push:
     paths:
-      - "whatsapp-cloud/**"\n      - "index.html"
+      - "whatsapp-cloud/**"
+      - "index.html"
       - ".github/workflows/whatsapp-bridge-check.yml"
   pull_request:
     paths:
-      - "whatsapp-cloud/**"\n      - "index.html"
+      - "whatsapp-cloud/**"
+      - "index.html"
       - ".github/workflows/whatsapp-bridge-check.yml"
 
 jobs:
   test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: whatsapp-cloud
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm install
-      - run: npm run check\n      - name: Check PWA inline JavaScript syntax
+      - name: Check bridge
+        working-directory: whatsapp-cloud
+        run: |
+          npm install
+          npm run check
+      - name: Check PWA inline JavaScript syntax
         run: |
           python - <<'PY'
           import re
@@ -34,4 +37,3 @@ jobs:
           Path("/tmp/almasar-pwa-check.js").write_text("\n".join(scripts), encoding="utf-8")
           PY
           node --check /tmp/almasar-pwa-check.js
-
