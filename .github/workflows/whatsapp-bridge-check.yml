@@ -17,26 +17,51 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: almasar
+          POSTGRES_PASSWORD: test-password
+          POSTGRES_DB: almasar_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U almasar -d almasar_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://almasar:test-password@localhost:5432/almasar_test
+      WEBHOOK_READ_TOKEN: integration-test-token
+      PORT: 10000
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Check bridge
+          cache: npm
+          cache-dependency-path: whatsapp-cloud/package-lock.json
+      - name: Install dependencies
+        working-directory: whatsapp-cloud
+        run: npm install
+      - name: Unit and parser checks
         working-directory: whatsapp-cloud
         run: |
-          npm install
           npm run check
           node --test ../tests/*.test.js
+      - name: PostgreSQL ACK and retention integration tests
+        working-directory: whatsapp-cloud
+        run: npm run test:integration
       - name: Check PWA inline JavaScript syntax
         run: |
           python - <<'PY'
           import re
           from pathlib import Path
           html = Path("index.html").read_text(encoding="utf-8")
-          scripts = re.findall(r"<script(?:\s[^>]*)?>([\s\S]*?)</script>", html, re.I)
+          scripts = re.findall(r"<script(?:\\s[^>]*)?>([\\s\\S]*?)</script>", html, re.I)
           if not scripts:
               raise SystemExit("No inline scripts found")
-          Path("/tmp/almasar-pwa-check.js").write_text("\n".join(scripts), encoding="utf-8")
+          Path("/tmp/almasar-pwa-check.js").write_text("\\n".join(scripts), encoding="utf-8")
           PY
           node --check /tmp/almasar-pwa-check.js
