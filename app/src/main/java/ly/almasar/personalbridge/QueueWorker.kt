@@ -19,7 +19,7 @@ class QueueWorker(context: Context, params: WorkerParameters) : Worker(context, 
                     store.removeFirst()
                     sent++
                 } catch (error: Exception) {
-                    val code = Regex("""\\((\\d{3})\\)""").find(error.message.orEmpty())?.groupValues?.get(1)?.toIntOrNull()
+                    val code = Regex("""\((\d{3})\)""").find(error.message.orEmpty())?.groupValues?.get(1)?.toIntOrNull()
                     when {
                         code == 401 -> return Result.failure()
                         code == 408 || code == 429 || (code != null && code >= 500) -> return Result.retry()
