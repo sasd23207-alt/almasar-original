@@ -795,7 +795,7 @@ function findMerchantFromConversation(label) {
   if (ranked[1] && ranked[0].score - ranked[1].score < 0.08) return null;
   return ranked[0].merchant;
 }
-const FINANCIAL_INTENT = /حواله|حوالة|تحويل|حولت|حوّلت|حولنا|حوّلنا|دفعت|دفعنا|سلمت|سلّمت|أرسلت|ارسلت|بعثت|سددت|استلمت|استلمنا|وصلني|وصلتني|قبضت|خصم|ايداع|إيداع|سحب|transfer|transferred|payment|paid|received|deposit|withdrawal/i;
+const FINANCIAL_INTENT = /حواله|حوالة|تحويل|حولتلي|حوّلتلي|حولوا\\s*لي|وصلتك|حولت|حوّلت|حولنا|حوّلنا|دفعت|دفعنا|سلمت|سلّمت|أرسلت|ارسلت|بعثت|سددت|استلمت|استلمنا|وصلني|وصلتني|قبضت|خصم|ايداع|إيداع|سحب|transfer|transferred|payment|paid|received|deposit|withdrawal/i;
 const FIRST_PERSON_SEND = /(?:انا\s*)?(?:حولت|حوّلت|حولنا|حوّلنا|دفعت|دفعنا|سلمت|سلّمت|أرسلت|ارسلت|بعثت|سددت|transferred|sent|paid)/i;
 const FIRST_PERSON_RECEIVE = /(?:انا\s*)?(?:استلمت|استلمنا|وصلني|وصلتني|قبضت|حولتلي|حوّلتلي|حولوا\s*لي|حوّلوا\s*لي|وصلتك|received)/i;
 const PASSIVE_TRANSFER = /تم\s*(?:تحويل|تحويله|ارسال|إرسال)|جرى\s*(?:تحويل|ارسال)|transfer\s*(?:completed|successful)|تمت\s*الحواله|تمت\s*الحوالة/i;
