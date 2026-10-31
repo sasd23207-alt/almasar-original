@@ -12,6 +12,10 @@ const APP_SECRET = process.env.META_APP_SECRET;
 const DATABASE_URL = process.env.DATABASE_URL;
 const ACCESS_TOKEN = process.env.WEBHOOK_READ_TOKEN;
 const PAIRING_CODE = process.env.PAIRING_CODE;
+const PAIR_CODE_TTL_MINUTES = 10;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 8;
+const attempts = new Map();
 const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
 const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION;
 const PWA_ORIGIN = process.env.PWA_ORIGIN || "";
@@ -23,6 +27,14 @@ const pool = DATABASE_URL ? new Pool({
   connectionTimeoutMillis: 10000
 }) : null;
 
+function rateLimited(req, key) {
+  const now = Date.now();
+  const id = (req.socket.remoteAddress || "unknown") + ":" + key;
+  const entry = attempts.get(id) || { start: now, count: 0 };
+  if (now - entry.start > RATE_LIMIT_WINDOW_MS) { entry.start = now; entry.count = 0; }
+  entry.count += 1; attempts.set(id, entry);
+  return entry.count > RATE_LIMIT_MAX;
+}
 function send(res, status, body, type = "application/json; charset=utf-8") {
   const headers = { "content-type": type, "cache-control": "no-store", "vary": "Origin" };
   const requestOrigin = res.req && res.req.headers && res.req.headers.origin;
@@ -149,13 +161,12 @@ function extractMessages(payload) {
           message_text: messageText(msg),
           media: messageMedia(msg),
           message_timestamp: unixTime(msg.timestamp),
-          raw_payload: msg,
-          raw_value: value
+          raw_payload: null,
+          raw_value: null
         });
       }
-      for (const status of value.statuses || []) {
-        out.push({ status_event: status });
-      }
+      // Delivery/read status callbacks contain no accounting content; do not persist them.
+      // Echo/history payload formats vary by Meta API version and are not assumed here.
     }
   }
   return out;
@@ -176,14 +187,6 @@ async function storePayload(payload, rawBody) {
     }
     let inserted = 0;
     for (const item of extractMessages(payload)) {
-      if (item.status_event) {
-        const s = item.status_event;
-        await client.query(
-          "INSERT INTO whatsapp_status_events (wamid, recipient_id, status, event_timestamp, raw_payload) VALUES ($1,$2,$3,$4,$5::jsonb)",
-          [s.id, s.recipient_id || null, s.status || "unknown", unixTime(s.timestamp), JSON.stringify(s)]
-        );
-        continue;
-      }
       if (!item.wamid) continue;
       const result = await client.query(
         "INSERT INTO whatsapp_messages (wamid, phone_number_id, business_display_phone, contact_wa_id, contact_name, message_type, message_text, message_timestamp, media, raw_payload, raw_value) " +
@@ -250,16 +253,22 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (route(req, res, "/pair", "POST")) {
-      if (!pool || !PAIRING_CODE) return send(res, 503, { error: "pairing_not_configured" });
+      if (rateLimited(req, "pair")) return send(res, 429, { error: "rate_limited" });
+      if (!pool) return send(res, 503, { error: "pairing_not_configured" });
       const body = await readJson(req);
-      if (!constantTimeEqual(body.code, PAIRING_CODE)) return send(res, 403, { error: "invalid_pairing_code" });
+      const suppliedCode = String(body.code || "");
+      const codeHash = crypto.createHash("sha256").update(suppliedCode).digest("hex");
       const client = await pool.connect();
       try {
         await client.query("BEGIN");
         const consumed = await client.query(
-          "INSERT INTO whatsapp_pairing_state (id, consumed_at) VALUES (1, NOW()) ON CONFLICT (id) DO NOTHING RETURNING id"
+          "UPDATE whatsapp_pairing_codes SET consumed_at=NOW() WHERE code_sha256=$1 AND consumed_at IS NULL AND expires_at>NOW() RETURNING id",
+          [codeHash]
         );
-        if (!consumed.rowCount) { await client.query("ROLLBACK"); return send(res, 409, { error: "pairing_code_already_used" }); }
+        if (!consumed.rowCount && PAIRING_CODE && constantTimeEqual(suppliedCode, PAIRING_CODE)) {
+          const legacy = await client.query("INSERT INTO whatsapp_pairing_state (id, consumed_at) VALUES (1,NOW()) ON CONFLICT (id) DO NOTHING RETURNING id");
+          if (!legacy.rowCount) { await client.query("ROLLBACK"); return send(res, 409, { error: "pairing_code_already_used" }); }
+        } else if (!consumed.rowCount) { await client.query("ROLLBACK"); return send(res, 403, { error: "invalid_or_expired_pairing_code" }); }
         const token = crypto.randomBytes(32).toString("base64url");
         const hash = crypto.createHash("sha256").update(token).digest("hex");
         await client.query("INSERT INTO whatsapp_device_tokens (token_sha256, device_name) VALUES ($1,$2)", [hash, String(body.device_name || "PWA").slice(0,120)]);
@@ -267,6 +276,20 @@ const server = http.createServer(async (req, res) => {
         return send(res, 201, { token, paired: true });
       } catch (error) { await client.query("ROLLBACK"); throw error; }
       finally { client.release(); }
+    }
+
+    if (req.method === "POST" && url.pathname === "/pair/codes") {
+      if (!(await authorized(req))) return send(res, 401, { error: "unauthorized" });
+      const body = await readJson(req);
+      const count = Math.min(10, Math.max(1, Number(body.count || 1)));
+      const codes = [];
+      for (let i = 0; i < count; i++) {
+        const code = crypto.randomBytes(18).toString("base64url");
+        const hash = crypto.createHash("sha256").update(code).digest("hex");
+        await pool.query("INSERT INTO whatsapp_pairing_codes (code_sha256, expires_at) VALUES ($1,NOW()+INTERVAL '10 minutes')", [hash]);
+        codes.push(code);
+      }
+      return send(res, 201, { codes, expires_in_seconds: PAIR_CODE_TTL_MINUTES * 60 });
     }
 
     if (req.method === "POST" && url.pathname === "/pair/revoke") {
@@ -287,6 +310,7 @@ const server = http.createServer(async (req, res) => {
     // It accepts only user-visible WhatsApp notification text; it does not
     // log in to WhatsApp or read private app storage.
     if (req.method === "POST" && url.pathname === "/personal/messages") {
+      if (rateLimited(req, "personal-auth")) return send(res, 429, { error: "rate_limited" });
       if (!(await authorized(req))) return send(res, 401, { error: "unauthorized" });
       if (!pool) return send(res, 503, { error: "database_not_configured" });
       const body = await readJson(req);
@@ -332,6 +356,18 @@ const server = http.createServer(async (req, res) => {
       const result = await pool.query(query, values);
       const nextCursor = result.rows.length ? String(result.rows[result.rows.length - 1].id) : cursor;
       return send(res, 200, { messages: result.rows, next_cursor: nextCursor });
+    }
+
+    if (req.method === "POST" && ["/messages/ack", "/personal/messages/ack"].includes(url.pathname)) {
+      if (!(await authorized(req))) return send(res, 401, { error: "unauthorized" });
+      const body = await readJson(req);
+      const ids = Array.isArray(body.ids) ? body.ids.slice(0, 500) : [];
+      if (!ids.length || ids.some((id) => typeof id !== "string")) return send(res, 400, { error: "invalid_ids" });
+      const personal = url.pathname.startsWith("/personal/");
+      const result = personal
+        ? await pool.query("UPDATE whatsapp_personal_events SET message_text=NULL, raw_event=NULL WHERE event_id=ANY($1::uuid[])", [ids])
+        : await pool.query("UPDATE whatsapp_messages SET message_text=NULL, raw_payload=NULL, raw_value=NULL WHERE wamid=ANY($1::text[])", [ids]);
+      return send(res, 200, { acknowledged: result.rowCount });
     }
 
     const statusMatch = url.pathname.match(/^\/messages\/([^/]+)\/status$/);
