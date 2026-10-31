@@ -19,10 +19,21 @@ class SecureStore(context: Context) {
         prefs.edit().putString("server", server.trim().trimEnd('/')).putString("token", token).apply()
     }
     @Synchronized fun clearCredentials() { prefs.edit().remove("token").apply() }
-    @Synchronized fun enqueue(event: String) {
+    @Synchronized fun enqueue(event: String): Boolean {
+        val incoming = try { org.json.JSONObject(event) } catch (_: Exception) { return false }
+        val eventId = incoming.optString("event_id")
         val q = JSONArray(prefs.getString("queue", "[]") ?: "[]")
+        for (i in 0 until q.length()) {
+            val existing = try { org.json.JSONObject(q.optString(i)) } catch (_: Exception) { null }
+            if (eventId.isNotBlank() && existing?.optString("event_id") == eventId) return true
+        }
+        // Keep the encrypted preference queue bounded to avoid unbounded JSON rewrites.
+        if (q.length() >= 500) return false
         q.put(event)
-        prefs.edit().putString("queue", q.toString()).apply()
+        val encoded = q.toString()
+        if (encoded.toByteArray(Charsets.UTF_8).size > 1024 * 1024) return false
+        prefs.edit().putString("queue", encoded).apply()
+        return true
     }
     @Synchronized fun peek(): String? {
         val q = JSONArray(prefs.getString("queue", "[]") ?: "[]")
