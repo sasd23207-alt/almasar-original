@@ -17,10 +17,18 @@ test("accepts a valid personal WhatsApp text event", () => {
   assert.equal(event.message_text, "تم تحويل 100 دولار");
 });
 
-test("rejects non-WhatsApp packages", () => {
+test("accepts WhatsApp and WhatsApp Business packages", () => {
+  for (const source_package of ["com.whatsapp", "com.whatsapp.w4b"]) {
+    assert.ok(normalizePersonalEvent({
+      event_id: "550e8400-e29b-41d4-a716-446655440000",
+      source_package,
+      direction: "in",
+      message_text: "hello"
+    }));
+  }
   assert.equal(normalizePersonalEvent({
     event_id: "550e8400-e29b-41d4-a716-446655440000",
-    source_package: "com.whatsapp.w4b",
+    source_package: "com.example.other",
     direction: "in",
     message_text: "hello"
   }), null);
