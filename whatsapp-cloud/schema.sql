@@ -87,3 +87,20 @@ ALTER TABLE whatsapp_personal_events
 ALTER TABLE whatsapp_personal_events
   ADD CONSTRAINT whatsapp_personal_events_source_package_check
   CHECK (source_package IN ('com.whatsapp', 'com.whatsapp.w4b'));
+
+
+-- Privacy retention and multi-device pairing migrations.
+ALTER TABLE whatsapp_messages ALTER COLUMN raw_payload DROP NOT NULL;
+ALTER TABLE whatsapp_messages ALTER COLUMN raw_value DROP NOT NULL;
+ALTER TABLE whatsapp_personal_events ALTER COLUMN message_text DROP NOT NULL;
+ALTER TABLE whatsapp_personal_events ALTER COLUMN raw_event DROP NOT NULL;
+
+CREATE TABLE IF NOT EXISTS whatsapp_pairing_codes (
+  id BIGSERIAL PRIMARY KEY,
+  code_sha256 TEXT NOT NULL UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ NOT NULL,
+  consumed_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS whatsapp_pairing_codes_expiry_idx ON whatsapp_pairing_codes (expires_at) WHERE consumed_at IS NULL;
+DELETE FROM whatsapp_status_events WHERE received_at < NOW() - INTERVAL '1 hour';
