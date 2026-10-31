@@ -56,7 +56,31 @@ async function readBody(req, maxBytes = 5 * 1024 * 1024) {
   }
   return Buffer.concat(chunks);
 }
-function unixTime(value) {
+
+function normalizePersonalEvent(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) return null;
+  const eventId = String(body.event_id || "");
+  const sourcePackage = String(body.source_package || "");
+  const direction = String(body.direction || "unknown");
+  const messageText = typeof body.message_text === "string" ? body.message_text.trim() : "";
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(eventId)) return null;
+  if (sourcePackage !== "com.whatsapp") return null;
+  if (!["in", "out", "unknown"].includes(direction)) return null;
+  if (!messageText || messageText.length > 12000) return null;
+  const occurredAt = body.occurred_at ? new Date(body.occurred_at) : null;
+  if (occurredAt && !Number.isFinite(occurredAt.getTime())) return null;
+  return {
+    event_id: eventId,
+    source_package: sourcePackage,
+    conversation: String(body.conversation || "").slice(0, 200) || null,
+    sender: String(body.sender || "").slice(0, 200) || null,
+    direction,
+    message_text: messageText,
+    occurred_at: occurredAt,
+    raw_event: body
+  };
+}
+\nfunction unixTime(value) {
   const seconds = Number(value);
   return Number.isFinite(seconds) && seconds > 0 ? new Date(seconds * 1000) : null;
 }
@@ -250,6 +274,40 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { revoked: true });
     }
 
+
+    // Ingestion endpoint for an explicitly enabled Android companion.
+    // It accepts only user-visible WhatsApp notification text; it does not
+    // log in to WhatsApp or read private app storage.
+    if (req.method === "POST" && url.pathname === "/personal/messages") {
+      if (!(await authorized(req))) return send(res, 401, { error: "unauthorized" });
+      if (!pool) return send(res, 503, { error: "database_not_configured" });
+      const body = await readJson(req);
+      const event = normalizePersonalEvent(body);
+      if (!event) return send(res, 400, { error: "invalid_personal_event" });
+      const result = await pool.query(
+        "INSERT INTO whatsapp_personal_events (event_id, source_package, conversation, sender, direction, message_text, occurred_at, raw_event) " +
+        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb) ON CONFLICT (event_id) DO NOTHING RETURNING id",
+        [event.event_id, event.source_package, event.conversation, event.sender, event.direction,
+         event.message_text, event.occurred_at, JSON.stringify(event.raw_event)]
+      );
+      return send(res, result.rowCount ? 201 : 200, { accepted: !!result.rowCount, duplicate: !result.rowCount });
+    }
+
+    if (req.method === "GET" && url.pathname === "/personal/messages") {
+      if (!(await authorized(req))) return send(res, 401, { error: "unauthorized" });
+      if (!pool) return send(res, 503, { error: "database_not_configured" });
+      const limit = Math.min(250, Math.max(1, Number(url.searchParams.get("limit") || 100)));
+      const after = String(url.searchParams.get("after") || "0");
+      if (!/^\\d+$/.test(after)) return send(res, 400, { error: "invalid_cursor" });
+      const result = await pool.query(
+        "SELECT id, event_id, conversation, sender, direction, message_text, occurred_at, received_at, processing_status " +
+        "FROM whatsapp_personal_events WHERE id>$1 ORDER BY id ASC LIMIT $2",
+        [after, limit]
+      );
+      const nextCursor = result.rows.length ? String(result.rows[result.rows.length - 1].id) : after;
+      return send(res, 200, { messages: result.rows, next_cursor: nextCursor });
+    }
+
     if (req.method === "GET" && url.pathname === "/messages") {
       if (!(await authorized(req))) return send(res, 401, { error: "unauthorized" });
       if (!pool) return send(res, 503, { error: "database_not_configured" });
@@ -328,4 +386,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { validSignature, messageText, messageMedia, extractMessages };
+module.exports = { validSignature, messageText, messageMedia, extractMessages, normalizePersonalEvent };
