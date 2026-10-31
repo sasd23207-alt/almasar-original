@@ -12,7 +12,7 @@ const start = html.indexOf("const CURRENCY_WORDS =");
 const end = html.indexOf("const BATCH_SIZE =", start);
 assert.ok(start >= 0 && end > start, "local extractor section must exist");
 const context = {};
-vm.runInNewContext(pure[1] + "\n" + html.slice(start, end) + "\nglobalThis.__api = { localExtract };", context);
+vm.runInNewContext(pure[1] + "\n" + html.slice(start, end) + "\nglobalThis.__api = { localExtract, canAutoConfirmProposal };", context);
 const extract = context.__api.localExtract;
 const at = "2026-10-31T10:00:00";
 
@@ -39,4 +39,19 @@ test("two thousand word is normalized", () => {
   const [item] = extract([{ id: "m4", at, sender: "Merchant", text: "حولتلي الفين دينار" }], ["Salem"]);
   assert.ok(item);
   assert.equal(item.amount, "2000");
+});
+
+test("proposal with analyzer warnings is never auto-confirmed", () => {
+  const proposal = { warnings: ["amount_ambiguous"] };
+  assert.equal(context.__api.canAutoConfirmProposal(proposal, "ok", true, false), false);
+});
+
+test("warning-free valid cloud proposal may auto-confirm only when enabled", () => {
+  const proposal = { warnings: [] };
+  assert.equal(context.__api.canAutoConfirmProposal(proposal, "ok", true, false), true);
+  assert.equal(context.__api.canAutoConfirmProposal(proposal, "ok", false, false), false);
+});
+
+test("personal WhatsApp proposals always require manual confirmation", () => {
+  assert.equal(context.__api.canAutoConfirmProposal({ warnings: [] }, "ok", true, true), false);
 });
