@@ -335,9 +335,14 @@ Rules:
 - Messages marked FREE TEXT have no sender and no reliable time. Decide the direction only from the wording. If you cannot tell who paid whom, use confidence 0.4 or lower and explain in note. For occurred_at use a date written in the text, otherwise the import date shown.`;
 
 function buildExtractionPrompt(messagesToAnalyze, contextMessages, ownerNames) {
-  const formatMessage = (m) => (m.freeText
-    ? `[${m.id}] (FREE TEXT, imported ${m.at.slice(0, 10)}) ${m.text}`
-    : `[${m.id}] ${m.at.slice(0, 16).replace('T', ' ')} ${m.sender || '(system)'}: ${m.text}`);
+  const formatMessage = (m) => {
+    const personalDirection = m.personalDirection === 'in' ? 'ANDROID_INCOMING_FROM_MERCHANT'
+      : m.personalDirection === 'out' ? 'ANDROID_OUTGOING_FROM_OWNER' : '';
+    const directionTag = personalDirection ? ` [${personalDirection}]` : '';
+    return m.freeText
+      ? `[${m.id}] (FREE TEXT, imported ${m.at.slice(0, 10)})${directionTag} ${m.text}`
+      : `[${m.id}] ${m.at.slice(0, 16).replace('T', ' ')} ${m.sender || '(system)'}:${directionTag} ${m.text}`;
+  };
   return EXTRACTION_INSTRUCTIONS
     + `\n\nThe owner appears in the chat as: ${ownerNames.join(', ')}`
     + `\n\nCONTEXT (already analyzed, use only to understand; never cite these ids):\n`
@@ -746,10 +751,18 @@ function localExtract(batch, ownerNames) {
     if (!sentVerb && !recvVerb) { return; }
     const isOwner = m.sender && ownerNames.some((n) => m.sender.includes(n) || n.includes(m.sender));
     let direction;
-    if (m.sender) {
+    // The Android companion labels the event by its actual notification/share path.
+    // This is stronger evidence than guessing the speaker from a chat title.
+    if (m.personalDirection === 'in') {
+      direction = 'received';
+    } else if (m.personalDirection === 'out') {
+      direction = 'sent';
+    } else if (m.sender) {
       direction = (sentVerb && !recvVerb) ? (isOwner ? 'sent' : 'received') : (isOwner ? 'received' : 'sent');
       if (!isOwner && THEY_SENT_TO_ME.test(text)) { direction = 'received'; }
-    } else { direction = sentVerb ? 'sent' : 'received'; }
+    } else {
+      direction = sentVerb ? 'sent' : 'received';
+    }
     const instrument = /صك/.test(text) ? 'certified_cheque' : /كاش|نقد|cash/i.test(text) ? 'cash' : /حوالة|تحويل|بنك|مصرف|حولت|حوّلت/.test(text) ? 'bank_transfer' : 'unknown';
     items.push({ source_message_ids: [m.id], occurred_at: m.at, amount: hits[0].amount, currency: hits[0].currency, direction,
       instrument, confidence: m.sender ? 0.85 : 0.5, evidence: m.text.slice(0, 120), note: 'استخراج المحلل المدمج' });
