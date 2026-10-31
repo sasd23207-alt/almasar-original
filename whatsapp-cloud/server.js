@@ -96,7 +96,7 @@ function normalizePersonalEvent(body) {
     direction,
     message_text: messageText,
     occurred_at: occurredAt,
-    raw_event: body
+    raw_event: null
   };
 }
 
@@ -320,7 +320,7 @@ const server = http.createServer(async (req, res) => {
         "INSERT INTO whatsapp_personal_events (event_id, source_package, conversation, sender, direction, message_text, occurred_at, raw_event) " +
         "VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb) ON CONFLICT (event_id) DO NOTHING RETURNING id",
         [event.event_id, event.source_package, event.conversation, event.sender, event.direction,
-         event.message_text, event.occurred_at, JSON.stringify(event.raw_event)]
+         event.message_text, event.occurred_at, null]
       );
       return send(res, result.rowCount ? 201 : 200, { accepted: !!result.rowCount, duplicate: !result.rowCount });
     }
