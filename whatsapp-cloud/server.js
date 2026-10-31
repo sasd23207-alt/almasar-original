@@ -14,7 +14,7 @@ const ACCESS_TOKEN = process.env.WEBHOOK_READ_TOKEN;
 const PAIRING_CODE = process.env.PAIRING_CODE;
 const META_ACCESS_TOKEN = process.env.META_ACCESS_TOKEN;
 const META_GRAPH_VERSION = process.env.META_GRAPH_VERSION;
-const PWA_ORIGIN = process.env.PWA_ORIGIN || "*";
+const PWA_ORIGIN = process.env.PWA_ORIGIN || "";
 const pool = DATABASE_URL ? new Pool({
   connectionString: DATABASE_URL,
   ssl: process.env.PGSSL === "true" ? { rejectUnauthorized: true } : undefined,
@@ -24,7 +24,14 @@ const pool = DATABASE_URL ? new Pool({
 }) : null;
 
 function send(res, status, body, type = "application/json; charset=utf-8") {
-  res.writeHead(status, { "content-type": type, "cache-control": "no-store", "access-control-allow-origin": PWA_ORIGIN, "vary": "Origin", "access-control-allow-headers": "Authorization, Content-Type", "access-control-allow-methods": "GET, POST, OPTIONS" });
+  const headers = { "content-type": type, "cache-control": "no-store", "vary": "Origin" };
+  const requestOrigin = res.req && res.req.headers && res.req.headers.origin;
+  if (PWA_ORIGIN && requestOrigin === PWA_ORIGIN) {
+    headers["access-control-allow-origin"] = PWA_ORIGIN;
+    headers["access-control-allow-headers"] = "Authorization, Content-Type";
+    headers["access-control-allow-methods"] = "GET, POST, OPTIONS";
+  }
+  res.writeHead(status, headers);
   res.end(typeof body === "string" || Buffer.isBuffer(body) ? body : JSON.stringify(body));
 }
 function constantTimeEqual(left, right) {
@@ -64,7 +71,7 @@ function normalizePersonalEvent(body) {
   const direction = String(body.direction || "unknown");
   const messageText = typeof body.message_text === "string" ? body.message_text.trim() : "";
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(eventId)) return null;
-  if (sourcePackage !== "com.whatsapp") return null;
+  if (!["com.whatsapp", "com.whatsapp.w4b"].includes(sourcePackage)) return null;
   if (!["in", "out", "unknown"].includes(direction)) return null;
   if (!messageText || messageText.length > 12000) return null;
   const occurredAt = body.occurred_at ? new Date(body.occurred_at) : null;
@@ -299,7 +306,7 @@ const server = http.createServer(async (req, res) => {
       if (!pool) return send(res, 503, { error: "database_not_configured" });
       const limit = Math.min(250, Math.max(1, Number(url.searchParams.get("limit") || 100)));
       const after = String(url.searchParams.get("after") || "0");
-      if (!/^\\d+$/.test(after)) return send(res, 400, { error: "invalid_cursor" });
+      if (!/^\d+$/.test(after)) return send(res, 400, { error: "invalid_cursor" });
       const result = await pool.query(
         "SELECT id, event_id, conversation, sender, direction, message_text, occurred_at, received_at, processing_status " +
         "FROM whatsapp_personal_events WHERE id>$1 ORDER BY id ASC LIMIT $2",
@@ -317,7 +324,7 @@ const server = http.createServer(async (req, res) => {
       const allowed = ["new", "processing", "processed", "review", "all"];
       if (!allowed.includes(status)) return send(res, 400, { error: "invalid_status" });
       const cursor = String(url.searchParams.get("after") || "0");
-      if (!/^\\d+$/.test(cursor)) return send(res, 400, { error: "invalid_cursor" });
+      if (!/^\d+$/.test(cursor)) return send(res, 400, { error: "invalid_cursor" });
       const query = status === "all"
         ? "SELECT id, wamid, phone_number_id, business_display_phone, contact_wa_id, contact_name, message_type, message_text, message_timestamp, media, raw_payload, received_at, processing_status FROM whatsapp_messages WHERE id>$1 ORDER BY id ASC LIMIT $2"
         : "SELECT id, wamid, phone_number_id, business_display_phone, contact_wa_id, contact_name, message_type, message_text, message_timestamp, media, raw_payload, received_at, processing_status FROM whatsapp_messages WHERE processing_status=$1 AND id>$2 ORDER BY id ASC LIMIT $3";
