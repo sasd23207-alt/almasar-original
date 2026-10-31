@@ -16,7 +16,7 @@ This service is the server-side intake layer for the existing Almasar PWA.
 ## Personal WhatsApp companion intake (new)
 
 - `POST /personal/messages` accepts events pushed by a separately installed, user-consented Android companion. It requires the paired device's bearer token.
-- The server accepts only the standard WhatsApp Android package ID (`com.whatsapp`), a UUID event ID, a direction (`in`, `out`, or `unknown`), and non-empty message text up to 12,000 characters.
+- The server accepts the standard WhatsApp Android package ID (`com.whatsapp`) and WhatsApp Business (`com.whatsapp.w4b`), a UUID event ID, a direction (`in`, `out`, or `unknown`), and non-empty message text up to 12,000 characters.
 - Duplicate event IDs are ignored. The original event is retained for audit and the message remains separate from Meta webhook records.
 - `GET /personal/messages?limit=100&after=0` retrieves accepted events using an integer cursor.
 - This is a secure server intake contract, **not an Android bot**. The repository still needs a native companion app with explicit Android notification access and a tested background delivery queue. Android notifications may omit, truncate, group, or hide message text; the server cannot recover content that Android does not expose.
@@ -37,8 +37,8 @@ Copy `.env.example` for local setup. Configure real secrets only in the hosting 
 - `META_ACCESS_TOKEN`: token authorized for the connected WhatsApp Business Account and media retrieval.
 - `META_GRAPH_VERSION`: currently supported Graph API version configured for the Meta app.
 - `WEBHOOK_READ_TOKEN`: legacy/admin secret protecting the bridge inbox API.
-- `PAIRING_CODE`: one-time code used to pair the first PWA device. It is consumed once; reset `whatsapp_pairing_state` only through a controlled database administration action if a fresh pairing is required.
-- `PWA_ORIGIN`: exact deployed PWA origin, e.g. `https://sasd23207-alt.github.io`.
+- `PAIRING_CODE`: one-time code used to pair the first device. The current implementation still consumes one global pairing code; multi-device pairing has not yet been implemented.
+- `PWA_ORIGIN`: exact deployed PWA origin, e.g. `https://sasd23207.github.io`. CORS is fail-closed: when unset or when the request Origin differs, browser cross-origin access is not granted.
 - `PORT`: supplied by the hosting platform.
 - `PGSSL=true`: only if the database endpoint requires trusted TLS.
 
