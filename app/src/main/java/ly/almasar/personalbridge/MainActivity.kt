@@ -154,9 +154,16 @@ class MainActivity : AppCompatActivity() {
         WorkManager.getInstance(this).enqueueUniqueWork("almasar-personal-queue", ExistingWorkPolicy.KEEP, request)
     }
 
+    private fun notificationPermissionEnabled(): Boolean {
+        val enabled = Settings.Secure.getString(contentResolver, "enabled_notification_listeners").orEmpty()
+        return enabled.split(':').any { it.equals(componentName.flattenToString(), ignoreCase = true) }
+    }
+
     private fun refreshStatus(message: String? = null) {
         val linked = store.token().isNotBlank()
-        status.text = message ?: "الحالة: ${if (linked) "مربوط" else "غير مربوط"}\nرسائل بانتظار الإرسال: ${store.queueSize()}"
+        val permission = if (notificationPermissionEnabled()) "مفعّل" else "غير مفعّل — فعّل إذن الوصول للإشعارات"
+        val base = "الحالة: ${if (linked) "مربوط" else "غير مربوط"}\nإذن الإشعارات: $permission\nرسائل بانتظار الإرسال: ${store.queueSize()}"
+        status.text = if (message.isNullOrBlank()) base else "$message\n$base"
     }
 
     override fun onDestroy() {
