@@ -14,6 +14,9 @@ on:
       - "tests/**"
       - ".github/workflows/whatsapp-bridge-check.yml"
 
+permissions:
+  contents: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -40,9 +43,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Install dependencies
+      - name: Generate and commit npm lockfile when absent
         working-directory: whatsapp-cloud
-        run: npm install
+        run: |
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          git add package-lock.json
+          if ! git diff --cached --quiet; then
+            git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "Add WhatsApp bridge npm lockfile"
+            git push
+          fi
+      - name: Install locked dependencies
+        working-directory: whatsapp-cloud
+        run: npm ci
       - name: Unit and parser checks
         working-directory: whatsapp-cloud
         run: |
