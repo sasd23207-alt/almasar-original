@@ -80,7 +80,8 @@ function normalizePersonalEvent(body) {
     raw_event: body
   };
 }
-\nfunction unixTime(value) {
+
+function unixTime(value) {
   const seconds = Number(value);
   return Number.isFinite(seconds) && seconds > 0 ? new Date(seconds * 1000) : null;
 }
