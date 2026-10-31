@@ -278,6 +278,11 @@ function toMinor(amountText, currency) {
   return minor;
 }
 
+function canAutoConfirmProposal(proposal, verdict, autoConfirmEnabled, personalSource) {
+  return !personalSource && autoConfirmEnabled === true && verdict === 'ok'
+    && !(Array.isArray(proposal && proposal.warnings) && proposal.warnings.length > 0);
+}
+
 function fromMinor(minor, currency) {
   const decimals = CURRENCY_DECIMALS[currency];
   const digits = String(Math.abs(minor)).padStart(decimals + 1, '0');
@@ -893,7 +898,7 @@ function enterProposal(merchantId, proposal, verdict) {
     const personalSource = sourceMessage && sourceMessage.source === 'whatsapp-personal';
     // Personal WhatsApp evidence always requires a human confirmation before affecting balances.
     const hasWarnings = Array.isArray(proposal.warnings) && proposal.warnings.length > 0;
-    const confirmNow = !personalSource && !hasWarnings && verdict.status === 'ok' && state.settings.autoConfirmOk;
+    const confirmNow = canAutoConfirmProposal(proposal, verdict.status, state.settings.autoConfirmOk, personalSource);
     const note = [proposal.note, personalSource ? 'مصدر شخصي: اعتماد يدوي إلزامي' : '',
       verdict.reasons.length ? 'تحقق: ' + verdict.reasons.join('، ') : ''].filter(Boolean).join(' | ');
     const transaction = {
