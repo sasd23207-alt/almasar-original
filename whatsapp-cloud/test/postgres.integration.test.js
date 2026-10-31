@@ -3,6 +3,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { spawn } = require("node:child_process");
+const fs = require("node:fs");
+const path = require("node:path");
 const { Pool } = require("pg");
 
 const base = "http://127.0.0.1:" + (process.env.PORT || "10000");
@@ -27,6 +29,8 @@ test("PostgreSQL ACK clears message bodies and startup retention purges expired 
   const oldWamid = "wamid.integration.expired." + Date.now();
   let child;
   try {
+    // Initialize/migrate PostgreSQL before inserting fixtures; bridge startup then purges expired rows.
+    await db.query(fs.readFileSync(path.join(__dirname, "..", "schema.sql"), "utf8"));
     await db.query(
       "INSERT INTO whatsapp_messages (wamid,message_type,message_text,raw_payload,raw_value,received_at) VALUES ($1,'text','ack me','{}','{}',NOW()),($2,'text','expire me','{}','{}',NOW()-INTERVAL '73 hours')",
       [messageId, oldWamid]
