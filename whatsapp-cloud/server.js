@@ -146,27 +146,45 @@ function extractMessages(payload) {
   for (const entry of payload.entry || []) {
     for (const change of entry.changes || []) {
       const value = change.value || {};
+      const metadata = value.metadata || {};
       const contacts = new Map((value.contacts || []).map((c) => [
         c.wa_id,
         c.profile && c.profile.name || null
       ]));
-      for (const msg of value.messages || []) {
+      const add = (msg, direction, threadContact = null) => {
+        if (!msg || !msg.id) return;
+        const contactId = direction === "out" ? (msg.to || threadContact) : (msg.from || threadContact);
         out.push({
           wamid: msg.id,
-          phone_number_id: value.metadata && value.metadata.phone_number_id || null,
-          business_display_phone: value.metadata && value.metadata.display_phone_number || null,
-          contact_wa_id: msg.from || null,
-          contact_name: contacts.get(msg.from) || null,
+          phone_number_id: metadata.phone_number_id || null,
+          business_display_phone: metadata.display_phone_number || null,
+          contact_wa_id: contactId || null,
+          contact_name: contacts.get(contactId) || null,
           message_type: msg.type || "unknown",
           message_text: messageText(msg),
           media: messageMedia(msg),
           message_timestamp: unixTime(msg.timestamp),
+          direction,
           raw_payload: null,
           raw_value: null
         });
+      };
+
+      for (const msg of value.messages || []) add(msg, "in");
+      // Coexistence echoes are messages sent by the business from WhatsApp Business App.
+      for (const msg of value.message_echoes || []) add(msg, "out");
+      for (const msg of value.smb_message_echoes || []) add(msg, "out");
+
+      // History is opt-in and arrives in chunks; only normalized message fields are retained.
+      for (const historyChunk of value.history || []) {
+        for (const thread of historyChunk.threads || []) {
+          const threadContact = thread.id || null;
+          for (const msg of thread.messages || []) {
+            const isOutbound = !!msg.to || (!!metadata.display_phone_number && msg.from === metadata.display_phone_number);
+            add(msg, isOutbound ? "out" : "in", threadContact);
+          }
+        }
       }
-      // Delivery/read status callbacks contain no accounting content; do not persist them.
-      // Echo/history payload formats vary by Meta API version and are not assumed here.
     }
   }
   return out;
@@ -190,12 +208,12 @@ async function storePayload(payload, rawBody) {
       if (!item.wamid) continue;
       const result = await client.query(
         "INSERT INTO whatsapp_messages (wamid, phone_number_id, business_display_phone, contact_wa_id, contact_name, message_type, message_text, message_timestamp, media, raw_payload, raw_value) " +
-        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb) ON CONFLICT (wamid) DO NOTHING",
+        "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12) ON CONFLICT (wamid) DO NOTHING",
         [
           item.wamid, item.phone_number_id, item.business_display_phone,
           item.contact_wa_id, item.contact_name, item.message_type, item.message_text,
           item.message_timestamp, JSON.stringify(item.media), JSON.stringify(item.raw_payload),
-          JSON.stringify(item.raw_value)
+          JSON.stringify(item.raw_value), item.direction
         ]
       );
       inserted += result.rowCount;
@@ -350,7 +368,7 @@ const server = http.createServer(async (req, res) => {
       const cursor = String(url.searchParams.get("after") || "0");
       if (!/^\d+$/.test(cursor)) return send(res, 400, { error: "invalid_cursor" });
       const query = status === "all"
-        ? "SELECT id, wamid, phone_number_id, business_display_phone, contact_wa_id, contact_name, message_type, message_text, message_timestamp, media, raw_payload, received_at, processing_status FROM whatsapp_messages WHERE id>$1 ORDER BY id ASC LIMIT $2"
+        ? "SELECT id, wamid, phone_number_id, business_display_phone, contact_wa_id, contact_name, message_type, message_text, message_timestamp, media, raw_payload, direction, received_at, processing_status FROM whatsapp_messages WHERE id>$1 ORDER BY id ASC LIMIT $2"
         : "SELECT id, wamid, phone_number_id, business_display_phone, contact_wa_id, contact_name, message_type, message_text, message_timestamp, media, raw_payload, received_at, processing_status FROM whatsapp_messages WHERE processing_status=$1 AND id>$2 ORDER BY id ASC LIMIT $3";
       const values = status === "all" ? [cursor, limit] : [status, cursor, limit];
       const result = await pool.query(query, values);
