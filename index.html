@@ -735,37 +735,80 @@ const CURRENCY_WORDS = [
 const SENT_WORDS = /حولت|حوّلت|دفعت|سلمت|سلّمت|أرسلت|ارسلت|بعثت|وديت|سددت|نزلت|حطيت|عطيت|transferred|sent|paid/i;
 const RECEIVED_WORDS = /استلمت|استلمنا|وصلني|وصلتني|قبضت|جاني|جاتني|received/i;
 const THEY_SENT_TO_ME = /(حولت|دفعت|ارسلت|أرسلت)\s*(ل[كي])|وصلك|وصلتك/;
+function normalizeArabicDigits(value) {
+  return String(value).replace(/[٠-٩۰-۹]/g, (digit) => {
+    const code = digit.charCodeAt(0);
+    return String(code >= 0x06f0 ? code - 0x06f0 : code - 0x0660);
+  }).replace(/[٫]/g, '.').replace(/[٬،]/g, ',');
+}
+function normalizeIdentity(value) {
+  return normalizeLine(value || '').toLocaleLowerCase()
+    .replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
+    .replace(/[ًٌٍَُِّْـ]/g, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+}
+const FINANCIAL_INTENT = /حواله|حوالة|تحويل|حولت|حوّلت|حولنا|حوّلنا|دفعت|دفعنا|سلمت|سلّمت|أرسلت|ارسلت|بعثت|سددت|استلمت|استلمنا|وصلني|وصلتني|قبضت|خصم|ايداع|إيداع|سحب|transfer|transferred|payment|paid|received|deposit|withdrawal/i;
+const FIRST_PERSON_SEND = /(?:انا\s*)?(?:حولت|حوّلت|حولنا|دفعت|دفعنا|سلمت|سلّمت|أرسلت|ارسلت|بعثت|سددت|transferred|sent|paid)/i;
+const FIRST_PERSON_RECEIVE = /(?:انا\s*)?(?:استلمت|استلمنا|وصلني|وصلتني|قبضت|received)/i;
+const PASSIVE_TRANSFER = /تم\s*(?:تحويل|تحويله|ارسال|إرسال)|جرى\s*(?:تحويل|ارسال)|transfer\s*(?:completed|successful)|تمت\s*الحواله|تمت\s*الحوالة/i;
+function resolveMessageSpeaker(m, ownerNames) {
+  if (m.personalDirection === 'out') return 'owner';
+  if (m.personalDirection === 'in') return 'other';
+  const sender = normalizeIdentity(m.sender);
+  const owner = ownerNames.map(normalizeIdentity).filter(Boolean);
+  if (sender && owner.some((name) => sender === name || sender.includes(name) || name.includes(sender))) return 'owner';
+  if (sender) return 'other';
+  return 'unknown';
+}
 function localExtract(batch, ownerNames) {
   const items = [];
   batch.forEach((m) => {
-    const text = normalizeLine(m.text);
-    const numberRe = /(\d[\d,]*(?:\.\d+)?)/g;
-    let found; const hits = [];
+    const original = String(m.text || '');
+    const text = normalizeArabicDigits(normalizeLine(original));
+    if (!FINANCIAL_INTENT.test(text)) return;
+    const numberRe = /(?:^|[^\p{L}\p{N}])([0-9]{1,3}(?:[, ][0-9]{3})+(?:\.[0-9]{1,4})?|[0-9]+(?:\.[0-9]{1,4})?)(?![\p{L}\p{N}])/gu;
+    let found;
+    const hits = [];
     while ((found = numberRe.exec(text)) !== null) {
-      const around = text.slice(Math.max(0, found.index - 14), found.index + found[0].length + 18);
-      const hit = CURRENCY_WORDS.find(([, re]) => re.test(around));
-      if (hit) { hits.push({ amount: found[1].replace(/,/g, ''), currency: hit[0] }); }
+      const rawAmount = found[1].replace(/[ ,]/g, '');
+      const amount = Number(rawAmount);
+      if (!Number.isFinite(amount) || amount <= 0 || amount > 1e12) continue;
+      const index = found.index + found[0].indexOf(found[1]);
+      const around = text.slice(Math.max(0, index - 36), Math.min(text.length, index + found[1].length + 36));
+      const currencyMatches = CURRENCY_WORDS.filter(([, re]) => re.test(around));
+      const uniqueCurrencies = [...new Set(currencyMatches.map(([code]) => code))];
+      if (uniqueCurrencies.length !== 1) continue;
+      if (/رقم\s*(?:الحساب|العمليه|العملية|المرجع)|(?:حساب|مرجع|reference|account)\s*(?:رقم|no\.?|#)/i.test(around)) continue;
+      hits.push({ amount: rawAmount, currency: uniqueCurrencies[0], index });
     }
-    if (hits.length !== 1) { return; }
-    const sentVerb = SENT_WORDS.test(text), recvVerb = RECEIVED_WORDS.test(text);
-    if (!sentVerb && !recvVerb) { return; }
-    const isOwner = m.sender && ownerNames.some((n) => m.sender.includes(n) || n.includes(m.sender));
-    let direction;
-    // The Android companion labels the event by its actual notification/share path.
-    // This is stronger evidence than guessing the speaker from a chat title.
-    if (m.personalDirection === 'in') {
-      direction = 'received';
-    } else if (m.personalDirection === 'out') {
-      direction = 'sent';
-    } else if (m.sender) {
-      direction = (sentVerb && !recvVerb) ? (isOwner ? 'sent' : 'received') : (isOwner ? 'received' : 'sent');
-      if (!isOwner && THEY_SENT_TO_ME.test(text)) { direction = 'received'; }
-    } else {
-      direction = sentVerb ? 'sent' : 'received';
+    const uniqueHits = hits.filter((hit, index) => !hits.slice(0,index).some((other) => other.amount === hit.amount && other.currency === hit.currency));
+    if (uniqueHits.length !== 1) return;
+    const sentVerb = FIRST_PERSON_SEND.test(text);
+    const receiveVerb = FIRST_PERSON_RECEIVE.test(text);
+    const passive = PASSIVE_TRANSFER.test(text);
+    if ((!sentVerb && !receiveVerb && !passive) || (sentVerb && receiveVerb)) return;
+    const speaker = resolveMessageSpeaker(m, ownerNames);
+    let direction = null;
+    if (speaker !== 'unknown' && !passive) {
+      if (sentVerb) direction = speaker === 'owner' ? 'sent' : 'received';
+      if (receiveVerb) direction = speaker === 'owner' ? 'received' : 'sent';
     }
-    const instrument = /صك/.test(text) ? 'certified_cheque' : /كاش|نقد|cash/i.test(text) ? 'cash' : /حوالة|تحويل|بنك|مصرف|حولت|حوّلت/.test(text) ? 'bank_transfer' : 'unknown';
-    items.push({ source_message_ids: [m.id], occurred_at: m.at, amount: hits[0].amount, currency: hits[0].currency, direction,
-      instrument, confidence: m.sender ? 0.85 : 0.5, evidence: m.text.slice(0, 120), note: 'استخراج المحلل المدمج' });
+    if (!direction && speaker !== 'unknown' && /(?:لك|لحسابك|إليك|اليك|your account|to you)/i.test(text) && sentVerb) {
+      direction = speaker === 'owner' ? 'sent' : 'received';
+    }
+    const instrument = /صك\s*(?:مصدق|مُصدّق)|شيك\s*(?:مصدق|مُصدّق)/i.test(text) ? 'certified_cheque'
+      : /كاش|نقد|cash/i.test(text) ? 'cash'
+      : /حواله|حوالة|تحويل|بنك|مصرف|bank|transfer/i.test(text) ? 'bank_transfer' : 'unknown';
+    const confidence = direction ? (uniqueHits.length === 1 && !passive ? 0.78 : 0.62) : 0.35;
+    items.push({
+      source_message_ids: [m.id], occurred_at: m.at,
+      amount: uniqueHits[0].amount, currency: uniqueHits[0].currency,
+      direction: direction || (speaker === 'owner' ? 'sent' : 'received'),
+      instrument, confidence,
+      evidence: original.slice(0, 240),
+      note: direction
+        ? 'استخراج محلي: مبلغ وعملة وقرائن اتجاه واضحة نسبيًا؛ يلزم مراجعة الرسالة الأصلية.'
+        : 'اتجاه الحركة غير محسوم من النص؛ تم وضعه للمراجعة ولا يعتمد تلقائيًا.'
+    });
   });
   return items;
 }
