@@ -57,3 +57,25 @@ CREATE TABLE IF NOT EXISTS whatsapp_device_tokens (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   revoked_at TIMESTAMPTZ
 );
+
+
+-- User-consented personal WhatsApp companion events. These are notification/share
+-- payloads pushed by an Android companion, not events received from Meta.
+CREATE TABLE IF NOT EXISTS whatsapp_personal_events (
+  id BIGSERIAL PRIMARY KEY,
+  event_id UUID NOT NULL UNIQUE,
+  source_package TEXT NOT NULL CHECK (source_package = 'com.whatsapp'),
+  conversation TEXT,
+  sender TEXT,
+  direction TEXT NOT NULL CHECK (direction IN ('in', 'out', 'unknown')),
+  message_text TEXT NOT NULL,
+  occurred_at TIMESTAMPTZ,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  processing_status TEXT NOT NULL DEFAULT 'new'
+    CHECK (processing_status IN ('new', 'processing', 'review', 'processed')),
+  raw_event JSONB NOT NULL
+);
+CREATE INDEX IF NOT EXISTS whatsapp_personal_events_status_idx
+  ON whatsapp_personal_events (processing_status, id ASC);
+CREATE INDEX IF NOT EXISTS whatsapp_personal_events_time_idx
+  ON whatsapp_personal_events (occurred_at DESC);
