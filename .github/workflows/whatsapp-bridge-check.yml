@@ -70,9 +70,9 @@ jobs:
           import re
           from pathlib import Path
           html = Path("index.html").read_text(encoding="utf-8")
-          scripts = re.findall(r"<script(?:\\s[^>]*)?>([\\s\\S]*?)</script>", html, re.I)
+          scripts = re.findall(r"<script(?:\s[^>]*)?>([\s\S]*?)</script>", html, re.I)
           if not scripts:
               raise SystemExit("No inline scripts found")
-          Path("/tmp/almasar-pwa-check.js").write_text("\\n".join(scripts), encoding="utf-8")
+          Path("/tmp/almasar-pwa-check.js").write_text("\n".join(scripts), encoding="utf-8")
           PY
           node --check /tmp/almasar-pwa-check.js
