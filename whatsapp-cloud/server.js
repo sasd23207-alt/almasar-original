@@ -207,7 +207,7 @@ async function storePayload(payload, rawBody) {
     for (const item of extractMessages(payload)) {
       if (!item.wamid) continue;
       const result = await client.query(
-        "INSERT INTO whatsapp_messages (wamid, phone_number_id, business_display_phone, contact_wa_id, contact_name, message_type, message_text, message_timestamp, media, raw_payload, raw_value) " +
+        "INSERT INTO whatsapp_messages (wamid, phone_number_id, business_display_phone, contact_wa_id, contact_name, message_type, message_text, message_timestamp, media, raw_payload, raw_value, direction) " +
         "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12) ON CONFLICT (wamid) DO NOTHING",
         [
           item.wamid, item.phone_number_id, item.business_display_phone,
@@ -283,10 +283,10 @@ const server = http.createServer(async (req, res) => {
           "UPDATE whatsapp_pairing_codes SET consumed_at=NOW() WHERE code_sha256=$1 AND consumed_at IS NULL AND expires_at>NOW() RETURNING id",
           [codeHash]
         );
-        if (!consumed.rowCount && PAIRING_CODE && constantTimeEqual(suppliedCode, PAIRING_CODE)) {
-          const legacy = await client.query("INSERT INTO whatsapp_pairing_state (id, consumed_at) VALUES (1,NOW()) ON CONFLICT (id) DO NOTHING RETURNING id");
-          if (!legacy.rowCount) { await client.query("ROLLBACK"); return send(res, 409, { error: "pairing_code_already_used" }); }
-        } else if (!consumed.rowCount) { await client.query("ROLLBACK"); return send(res, 403, { error: "invalid_or_expired_pairing_code" }); }
+        if (!consumed.rowCount) {
+          await client.query("ROLLBACK");
+          return send(res, 403, { error: "invalid_or_expired_pairing_code" });
+        }
         const token = crypto.randomBytes(32).toString("base64url");
         const hash = crypto.createHash("sha256").update(token).digest("hex");
         await client.query("INSERT INTO whatsapp_device_tokens (token_sha256, device_name) VALUES ($1,$2)", [hash, String(body.device_name || "PWA").slice(0,120)]);
