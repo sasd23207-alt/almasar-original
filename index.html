@@ -334,7 +334,7 @@ Rules:
 - The text may be messy: copied from anywhere, with no clean structure. Read it the way a person would.
 - Messages marked FREE TEXT have no sender and no reliable time. Decide the direction only from the wording. If you cannot tell who paid whom, use confidence 0.4 or lower and explain in note. For occurred_at use a date written in the text, otherwise the import date shown.`;
 
-function buildExtractionPrompt(messagesToAnalyze, contextMessages, ownerNames) {
+function buildExtractionPrompt(messagesToAnalyze, contextMessages, ownerNames, learningExamples = []) {
   const formatMessage = (m) => {
     const personalDirection = m.personalDirection === 'in' ? 'ANDROID_INCOMING_FROM_MERCHANT'
       : m.personalDirection === 'out' ? 'ANDROID_OUTGOING_FROM_OWNER' : '';
@@ -345,6 +345,10 @@ function buildExtractionPrompt(messagesToAnalyze, contextMessages, ownerNames) {
   };
   return EXTRACTION_INSTRUCTIONS
     + `\n\nThe owner appears in the chat as: ${ownerNames.join(', ')}`
+    + `\n\nVERIFIED OWNER CORRECTIONS (learn from these examples; apply only when matching evidence exists; never copy amounts or dates):\n`
+    + (learningExamples.slice(-25).map((example, index) =>
+      `[${index + 1}] ${example.text} => ${example.direction} ${example.amount} ${example.currency}; instrument=${example.instrument || 'unknown'}`
+    ).join('\n') || '(no corrections recorded)')
     + `\n\nCONTEXT (already analyzed, use only to understand; never cite these ids):\n`
     + (contextMessages.map(formatMessage).join('\n') || '(none)')
     + `\n\nANALYZE THESE:\n` + messagesToAnalyze.map(formatMessage).join('\n');
@@ -598,6 +602,16 @@ el('saveTxButton').addEventListener('click', () => {
     if (!reason) { showFormMessage('اكتب سبب التعديل.'); return; }
     state.audit.push({ id: newId(), transactionId: transaction.id, action: 'edit', reason, at: now,
       before: { ...transaction }, after: { ...transaction, ...fields } });
+    const source = state.messages.find((m) => m.id === transaction.sourceMessageId);
+    if (source && transaction.origin === 'agent') {
+      state.settings.learningExamples = state.settings.learningExamples || [];
+      state.settings.learningExamples.push({
+        id: newId(), merchantId: transaction.merchantId, text: source.text.slice(0, 300),
+        amount: fromMinor(fields.amountMinor, fields.currency), currency: fields.currency,
+        direction: fields.direction, instrument: fields.instrument, correctedAt: now
+      });
+      state.settings.learningExamples = state.settings.learningExamples.slice(-200);
+    }
     Object.assign(transaction, fields);
     if (wasPending) { transaction.status = 'confirmed'; }
   } else {
@@ -854,6 +868,7 @@ async function analyzeNewMessages() {
   const useLocal = !askClaude && !state.settings.apiKey;
   const ask = askClaude || createApiKeyAsker();
   const ownerNames = el('ownerNameInput').value.split(/[,،]/).map((name) => name.trim()).filter(Boolean);
+  const learningExamples = (state.settings.learningExamples || []).filter((example) => example.merchantId === merchant.id);
   if (ownerNames.length === 0) { setAgentReport('اكتب اسمك كما يظهر في المحادثة أولًا، حتى يعرف الوكيل اتجاه كل حوالة.'); return; }
   merchant.ownerNames = ownerNames;
   state.settings.autoConfirmOk = el('autoConfirmInput').checked;
@@ -878,7 +893,7 @@ async function analyzeNewMessages() {
       const context = ordered.slice(Math.max(0, firstIndex - 8), firstIndex);
       setAgentReport(`جارٍ التحليل… ${Math.min(start + BATCH_SIZE, todo.length)} من ${todo.length} رسالة`);
       const answer = useLocal ? { text: JSON.stringify(localExtract(batch, ownerNames)) }
-        : await ask(buildExtractionPrompt(batch, context, ownerNames), { modelTier: 'default', signal: stopController.signal, cache: false });
+        : await ask(buildExtractionPrompt(batch, context, ownerNames, learningExamples), { modelTier: 'default', signal: stopController.signal, cache: false });
       const parsed = parseExtractorOutput(answer.text, batch.map((m) => m.id));
       if (parsed.unusable) { throw { code: 'bad_output', message: parsed.problems[0] }; }
       totals.problems += parsed.problems.length;
