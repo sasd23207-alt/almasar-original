@@ -57,6 +57,6 @@ test("maps sender display name and timestamp from webhook contacts", () => {
   assert.equal(messages.length, 1);
   assert.equal(messages[0].contact_name, "تاجر الاختبار");
   assert.equal(messages[0].message_text, "تم تحويل 100 دينار");
-  assert.equal(messages[0].raw_payload.id, "wamid.test.1");
+  assert.equal(messages[0].raw_payload, null);
   assert.equal(messages[0].phone_number_id, "phone-id");
 });
