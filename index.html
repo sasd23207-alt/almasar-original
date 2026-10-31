@@ -1076,9 +1076,63 @@ async function syncCloudMessages() {
       saveState(); await writeChain;
       if (items.length < 100) break;
     }
+    // Sync user-consented personal WhatsApp notification/share events independently
+    // from the Meta Business inbox. Keep a separate cursor to avoid skipping either stream.
+    let personalCursor = String(cfg.personalCursor || "0"), personalReceived = 0, personalAdded = 0, personalQueued = 0;
+    for (let page = 0; page < 10; page++) {
+      const response = await fetch(base + '/personal/messages?limit=100&after=' + encodeURIComponent(personalCursor), { headers: cloudAuthHeaders() });
+      if (response.status === 401) throw new Error('انتهت صلاحية ربط الرسائل الشخصية.');
+      if (!response.ok) throw new Error('personal_server_' + response.status);
+      const data = await response.json(), items = Array.isArray(data.messages) ? data.messages : [];
+      if (!items.length) break;
+      for (const event of items) {
+        personalReceived++;
+        const externalId = 'personal:' + String(event.event_id || event.id);
+        if (!event.message_text || state.messages.some(m => m.externalId === externalId) ||
+            (state.remoteInbox || []).some(m => m.wamid === externalId)) continue;
+        const label = String(event.sender || event.conversation || '').trim();
+        const merchant = state.merchants.find(m => {
+          const aliases = [m.name, m.whatsappName, ...(Array.isArray(m.whatsappAliases) ? m.whatsappAliases : [])]
+            .filter(Boolean).map(x => String(x).trim().toLocaleLowerCase());
+          const candidate = label.toLocaleLowerCase();
+          return candidate && aliases.some(alias => alias && (candidate === alias || candidate.includes(alias) || alias.includes(candidate)));
+        });
+        const timestamp = event.occurred_at ? new Date(event.occurred_at) : new Date(event.received_at || Date.now());
+        const at = Number.isNaN(timestamp.getTime()) ? new Date().toISOString().slice(0,16) : timestamp.toISOString().slice(0,16);
+        const normalized = {
+          wamid: externalId, contact_name: label || 'محادثة واتساب',
+          contact_wa_id: null, message_text: String(event.message_text).slice(0,12000),
+          message_timestamp: at, received_at: event.received_at || new Date().toISOString(),
+          message_type: 'personal-' + String(event.direction || 'unknown'),
+          personalDirection: event.direction || 'unknown'
+        };
+        if (merchant) {
+          const saved = addRemoteMessage(normalized, merchant);
+          if (saved) {
+            const target = state.messages[state.messages.length - 1];
+            target.source = 'whatsapp-personal';
+            target.personalDirection = event.direction || 'unknown';
+            target.conversation = event.conversation || null;
+            personalAdded++;
+          }
+        } else {
+          state.remoteInbox = state.remoteInbox || [];
+          state.remoteInbox.push(normalized);
+          personalQueued++;
+        }
+      }
+      const next = String(data.next_cursor || personalCursor);
+      if (next === personalCursor) break;
+      personalCursor = next;
+      state.settings[CLOUD_SETTINGS_KEY].personalCursor = personalCursor;
+      saveState(); await writeChain;
+      if (items.length < 100) break;
+    }
+    state.settings[CLOUD_SETTINGS_KEY].personalCursor = personalCursor;
     saveState(); await writeChain;
     renderAll(); renderRemoteUnmatched();
-    cloudReport('اكتملت المزامنة: ' + received + ' رسالة مستلمة، ' + added + ' أضيفت لسجلات التجار، ' + queued + ' تنتظر ربطها بتاجر. الرسائل الجديدة لم تُسجّل كحوالات مؤكدة تلقائيًا.');
+    cloudReport('مزامنة واتساب: ' + received + ' رسالة أعمال (' + added + ' مرتبطة، ' + queued + ' تنتظر التاجر)؛ والواتساب الشخصي: ' +
+      personalReceived + ' حدثًا (' + personalAdded + ' أُضيفت للتاجر، ' + personalQueued + ' تنتظر الربط). كل الرسائل الجديدة تمر على وكيل التحليل ولا تُسجّل في الرصيد قبل المراجعة.');
   } catch (error) { cloudReport('توقفت المزامنة: ' + (error.message || 'خطأ اتصال') + ' — سيُعاد المحاولة لاحقًا.'); }
   finally { el('cloudSyncButton').disabled = false; }
 }
