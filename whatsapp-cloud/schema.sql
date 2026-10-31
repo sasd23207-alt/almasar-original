@@ -14,6 +14,9 @@ CREATE TABLE IF NOT EXISTS whatsapp_messages (
 
 -- Additive migrations: preserve all messages already stored by the first bridge version.
 ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS media JSONB;
+ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS direction TEXT NOT NULL DEFAULT 'in';
+ALTER TABLE whatsapp_messages DROP CONSTRAINT IF EXISTS whatsapp_messages_direction_check;
+ALTER TABLE whatsapp_messages ADD CONSTRAINT whatsapp_messages_direction_check CHECK (direction IN ('in','out'));
 ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS raw_value JSONB;
 ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS processing_status TEXT NOT NULL DEFAULT 'new';
 ALTER TABLE whatsapp_messages ADD COLUMN IF NOT EXISTS processed_at TIMESTAMPTZ;
