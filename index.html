@@ -1035,7 +1035,10 @@ function addRemoteMessage(item, merchant) {
   state.messages.push({
     id: newId(), externalId: item.wamid, merchantId: merchant.id,
     key: 'wa-cloud|' + item.wamid, at, sender: item.contact_name || item.contact_wa_id || 'واتساب للأعمال',
-    text, freeText: true, analyzed: false, source: 'whatsapp-cloud',
+    text, freeText: true, analyzed: false,
+    source: item.personalDirection ? 'whatsapp-personal' : 'whatsapp-cloud',
+    personalDirection: item.personalDirection || null,
+    conversation: item.conversation || null,
     media: item.media || null, rawMessageType: item.message_type || 'unknown'
   });
   return true;
