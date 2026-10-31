@@ -727,6 +727,18 @@ el('pendingList').addEventListener('click', (event) => {
   const now = new Date().toISOString();
   if (fix) { startEdit(id); return; }
   const before = { ...t };
+  if (confirm) {
+    const source = state.messages.find((message) => message.id === t.sourceMessageId);
+    if (source && t.origin === 'agent') {
+      state.settings.learningExamples = state.settings.learningExamples || [];
+      state.settings.learningExamples.push({
+        id: newId(), merchantId: t.merchantId, text: source.text.slice(0, 300),
+        amount: fromMinor(t.amountMinor, t.currency), currency: t.currency,
+        direction: t.direction, instrument: t.instrument, correctedAt: now, feedback: 'confirmed'
+      });
+      state.settings.learningExamples = state.settings.learningExamples.slice(-200);
+    }
+  }
   t.status = confirm ? 'confirmed' : 'voided';
   state.audit.push({ id: newId(), transactionId: id, action: confirm ? 'confirm' : 'void',
     reason: confirm ? '' : 'رفضها التاجر (فهم خاطئ من الوكيل)', at: now, before, after: { ...t } });
@@ -847,12 +859,17 @@ function enterProposal(merchantId, proposal, verdict) {
   const now = new Date().toISOString();
   const logEntry = { id: newId(), merchantId, at: now, proposal, verdict: verdict.status, reasons: verdict.reasons, transactionId: null };
   if (verdict.status !== 'reject') {
-    const confirmNow = verdict.status === 'ok' && state.settings.autoConfirmOk;
-    const note = [proposal.note, verdict.reasons.length ? 'تحقق: ' + verdict.reasons.join('، ') : ''].filter(Boolean).join(' | ');
+    const sourceMessage = state.messages.find((message) => message.id === proposal.sourceMessageIds[0]);
+    const personalSource = sourceMessage && sourceMessage.source === 'whatsapp-personal';
+    // Personal WhatsApp evidence always requires a human confirmation before affecting balances.
+    const confirmNow = !personalSource && verdict.status === 'ok' && state.settings.autoConfirmOk;
+    const note = [proposal.note, personalSource ? 'مصدر شخصي: اعتماد يدوي إلزامي' : '',
+      verdict.reasons.length ? 'تحقق: ' + verdict.reasons.join('، ') : ''].filter(Boolean).join(' | ');
     const transaction = {
       id: newId(), merchantId, at: proposal.at, amountMinor: toMinor(proposal.amount, proposal.currency),
       currency: proposal.currency, direction: proposal.direction, instrument: proposal.instrument, note,
       status: confirmNow ? 'confirmed' : 'pending_review', origin: 'agent',
+      sourceChannel: personalSource ? 'whatsapp-personal' : 'whatsapp-cloud',
       sourceMessageId: proposal.sourceMessageIds[0], createdAt: now,
     };
     state.transactions.push(transaction);
