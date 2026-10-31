@@ -16,6 +16,11 @@ import java.security.MessageDigest
 import java.util.UUID
 
 class WhatsAppNotificationListener : NotificationListenerService() {
+    override fun onListenerDisconnected() {
+        super.onListenerDisconnected()
+        requestRebind(android.content.ComponentName(this, WhatsAppNotificationListener::class.java))
+    }
+
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (sbn.packageName !in SUPPORTED_PACKAGES || sbn.isOngoing) return
         val notification = sbn.notification
