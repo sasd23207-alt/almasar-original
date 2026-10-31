@@ -11,6 +11,7 @@ on:
     paths:
       - "whatsapp-cloud/**"
       - "index.html"
+      - "tests/**"
       - ".github/workflows/whatsapp-bridge-check.yml"
 
 jobs:
