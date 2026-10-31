@@ -7,6 +7,19 @@ android {
     namespace = "ly.almasar.personalbridge"
     compileSdk = 35
 
+    signingConfigs {
+        create("release") {
+            val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+            val storePasswordValue = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            val keyAliasValue = System.getenv("ANDROID_KEY_ALIAS")
+            val keyPasswordValue = System.getenv("ANDROID_KEY_PASSWORD")
+            if (!keystorePath.isNullOrBlank()) storeFile = file(keystorePath)
+            if (!storePasswordValue.isNullOrBlank()) storePassword = storePasswordValue
+            if (!keyAliasValue.isNullOrBlank()) keyAlias = keyAliasValue
+            if (!keyPasswordValue.isNullOrBlank()) keyPassword = keyPasswordValue
+        }
+    }
+
     defaultConfig {
         applicationId = "ly.almasar.personalbridge"
         minSdk = 26
@@ -22,6 +35,13 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+    }
+
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = false
+        }
     }
 }
 
