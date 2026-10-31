@@ -11,9 +11,6 @@ import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import org.json.JSONArray
 import org.json.JSONObject
-import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
-import java.util.UUID
 
 class WhatsAppNotificationListener : NotificationListenerService() {
     override fun onListenerDisconnected() {
@@ -55,12 +52,8 @@ class WhatsAppNotificationListener : NotificationListenerService() {
 
         val store = SecureStore(this)
         for ((sender, body, messageTime) in events) {
-            val stableKey = "${sbn.key}|$sender|$messageTime|$body"
-            val digest = MessageDigest.getInstance("SHA-256")
-                .digest(stableKey.toByteArray(StandardCharsets.UTF_8))
-                .joinToString("") { "%02x".format(it) }
             val event = JSONObject()
-                .put("event_id", UUID.nameUUIDFromBytes(digest.toByteArray(StandardCharsets.UTF_8)).toString())
+                .put("event_id", NotificationEventKey.create(sbn.key, sender, messageTime, body))
                 .put("source_package", sbn.packageName)
                 .put("direction", "unknown")
                 .put("message_text", body.take(12000))
