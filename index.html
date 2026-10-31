@@ -772,6 +772,29 @@ function normalizeIdentity(value) {
     .replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه')
     .replace(/[ًٌٍَُِّْـ]/g, '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 }
+function findMerchantFromConversation(label) {
+  const candidate = normalizeIdentity(label);
+  if (!candidate) return null;
+  const candidateTokens = new Set(candidate.split(' ').filter((token) => token.length > 1));
+  const ranked = state.merchants.map((merchant) => {
+    const aliases = [merchant.name, merchant.whatsappName, ...(Array.isArray(merchant.whatsappAliases) ? merchant.whatsappAliases : [])]
+      .filter(Boolean).map(normalizeIdentity).filter(Boolean);
+    let score = 0;
+    for (const alias of aliases) {
+      if (candidate === alias) score = Math.max(score, 1);
+      else if (candidate.startsWith(alias + ' ') || candidate.endsWith(' ' + alias)) score = Math.max(score, 0.92);
+      else {
+        const tokens = alias.split(' ').filter((token) => token.length > 1);
+        const overlap = tokens.filter((token) => candidateTokens.has(token)).length;
+        if (tokens.length >= 2) score = Math.max(score, overlap / tokens.length);
+      }
+    }
+    return { merchant, score };
+  }).sort((a, b) => b.score - a.score);
+  if (!ranked.length || ranked[0].score < 0.85) return null;
+  if (ranked[1] && ranked[0].score - ranked[1].score < 0.08) return null;
+  return ranked[0].merchant;
+}
 const FINANCIAL_INTENT = /حواله|حوالة|تحويل|حولت|حوّلت|حولنا|حوّلنا|دفعت|دفعنا|سلمت|سلّمت|أرسلت|ارسلت|بعثت|سددت|استلمت|استلمنا|وصلني|وصلتني|قبضت|خصم|ايداع|إيداع|سحب|transfer|transferred|payment|paid|received|deposit|withdrawal/i;
 const FIRST_PERSON_SEND = /(?:انا\s*)?(?:حولت|حوّلت|حولنا|دفعت|دفعنا|سلمت|سلّمت|أرسلت|ارسلت|بعثت|سددت|transferred|sent|paid)/i;
 const FIRST_PERSON_RECEIVE = /(?:انا\s*)?(?:استلمت|استلمنا|وصلني|وصلتني|قبضت|received)/i;
@@ -1182,12 +1205,7 @@ async function syncCloudMessages() {
         if (!event.message_text || state.messages.some(m => m.externalId === externalId) ||
             (state.remoteInbox || []).some(m => m.wamid === externalId)) continue;
         const label = String(event.sender || event.conversation || '').trim();
-        const merchant = state.merchants.find(m => {
-          const aliases = [m.name, m.whatsappName, ...(Array.isArray(m.whatsappAliases) ? m.whatsappAliases : [])]
-            .filter(Boolean).map(x => String(x).trim().toLocaleLowerCase());
-          const candidate = label.toLocaleLowerCase();
-          return candidate && aliases.some(alias => alias && (candidate === alias || candidate.includes(alias) || alias.includes(candidate)));
-        });
+        const merchant = findMerchantFromConversation(label);
         const timestamp = event.occurred_at ? new Date(event.occurred_at) : new Date(event.received_at || Date.now());
         const at = Number.isNaN(timestamp.getTime()) ? new Date().toISOString().slice(0,16) : timestamp.toISOString().slice(0,16);
         const normalized = {
