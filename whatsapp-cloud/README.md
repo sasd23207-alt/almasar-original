@@ -13,6 +13,14 @@ This service is the server-side intake layer for the existing Almasar PWA.
 - Authenticated inbox listing and processing-status update endpoints.
 - Authenticated media download proxy using the Meta media ID and access token.
 
+## Personal WhatsApp companion intake (new)
+
+- `POST /personal/messages` accepts events pushed by a separately installed, user-consented Android companion. It requires the paired device's bearer token.
+- The server accepts only the standard WhatsApp Android package ID (`com.whatsapp`), a UUID event ID, a direction (`in`, `out`, or `unknown`), and non-empty message text up to 12,000 characters.
+- Duplicate event IDs are ignored. The original event is retained for audit and the message remains separate from Meta webhook records.
+- `GET /personal/messages?limit=100&after=0` retrieves accepted events using an integer cursor.
+- This is a secure server intake contract, **not an Android bot**. The repository still needs a native companion app with explicit Android notification access and a tested background delivery queue. Android notifications may omit, truncate, group, or hide message text; the server cannot recover content that Android does not expose.
+
 ## Important limits
 
 This bridge receives only new events Meta delivers for the connected WhatsApp Business Account and subscribed webhook fields. It does not sign into or scrape a personal WhatsApp account, does not import personal-account chat history, and does not promise access to every personal or group conversation.
