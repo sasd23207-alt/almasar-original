@@ -6,7 +6,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --test",
+    "check": "node --check server.js && node --test test/server.test.js",
     "test:integration": "node --test test/postgres.integration.test.js"
   },
   "engines": {
