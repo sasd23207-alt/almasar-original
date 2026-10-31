@@ -186,9 +186,9 @@ const CURRENCY_DECIMALS = { LYD: 3, USD: 2, EUR: 2, GBP: 2, CHF: 2, TRY: 2, EGP:
 const CURRENCY_NAMES = { LYD: 'دينار ليبي', USD: 'دولار أمريكي', EUR: 'يورو', GBP: 'جنيه إسترليني', CHF: 'فرنك سويسري', TRY: 'ليرة تركية', EGP: 'جنيه مصري', TND: 'دينار تونسي', DZD: 'دينار جزائري', MAD: 'درهم مغربي', SAR: 'ريال سعودي', AED: 'درهم إماراتي', QAR: 'ريال قطري', KWD: 'دينار كويتي', BHD: 'دينار بحريني', OMR: 'ريال عماني', JOD: 'دينار أردني', CNY: 'يوان صيني', INR: 'روبية هندية', PKR: 'روبية باكستانية', CAD: 'دولار كندي', AUD: 'دولار أسترالي', SDG: 'جنيه سوداني', RUB: 'روبل روسي' };
 const INVISIBLE_MARKS = /[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g;
 const DATE_PART = '(\\d{1,2})[/.\\-](\\d{1,2})[/.\\-](\\d{2,4})';
-const TIME_PART = '(\\d{1,2}):(\\d{2})(?::(\\d{2}))?\\s*([AaPp]\\.?\\s?[Mm]\\.?|ص|م)?';
+const TIME_PART = '(\\d{1,2}):(\\d{2})(?::(\\d{2}))?\s*([AaPp]\\.?\s?[Mm]\\.?|ص|م)?';
 // One flexible header: optional [brackets], optional dash, day-first, month-first or year-first dates.
-const MESSAGE_HEADER = new RegExp('^\\[?\\s*(\\d{1,4})[/.\\-](\\d{1,2})[/.\\-](\\d{1,4})[,،]?\\s+' + TIME_PART + '\\s*\\]?\\s*(?:[-–—]\\s*)?(.*)$');
+const MESSAGE_HEADER = new RegExp('^\\[?\s*(\\d{1,4})[/.\\-](\\d{1,2})[/.\\-](\\d{1,4})[,،]?\s+' + TIME_PART + '\s*\\]?\s*(?:[-–—]\s*)?(.*)$');
 
 function pad(number) { return String(number).padStart(2, '0'); }
 
@@ -796,8 +796,8 @@ function findMerchantFromConversation(label) {
   return ranked[0].merchant;
 }
 const FINANCIAL_INTENT = /حواله|حوالة|تحويل|حولت|حوّلت|حولنا|حوّلنا|دفعت|دفعنا|سلمت|سلّمت|أرسلت|ارسلت|بعثت|سددت|استلمت|استلمنا|وصلني|وصلتني|قبضت|خصم|ايداع|إيداع|سحب|transfer|transferred|payment|paid|received|deposit|withdrawal/i;
-const FIRST_PERSON_SEND = /(?:انا\s*)?(?:حولت|حوّلت|حولنا|دفعت|دفعنا|سلمت|سلّمت|أرسلت|ارسلت|بعثت|سددت|transferred|sent|paid)/i;
-const FIRST_PERSON_RECEIVE = /(?:انا\s*)?(?:استلمت|استلمنا|وصلني|وصلتني|قبضت|received)/i;
+const FIRST_PERSON_SEND = /(?:انا\s*)?(?:حولت|حوّلت|حولنا|حوّلنا|دفعت|دفعنا|سلمت|سلّمت|أرسلت|ارسلت|بعثت|سددت|transferred|sent|paid)/i;
+const FIRST_PERSON_RECEIVE = /(?:انا\s*)?(?:استلمت|استلمنا|وصلني|وصلتني|قبضت|حولتلي|حوّلتلي|حولوا\s*لي|حوّلوا\s*لي|وصلتك|received)/i;
 const PASSIVE_TRANSFER = /تم\s*(?:تحويل|تحويله|ارسال|إرسال)|جرى\s*(?:تحويل|ارسال)|transfer\s*(?:completed|successful)|تمت\s*الحواله|تمت\s*الحوالة/i;
 function resolveMessageSpeaker(m, ownerNames) {
   if (m.personalDirection === 'out') return 'owner';
@@ -820,7 +820,7 @@ function localExtract(batch, ownerNames) {
     while ((found = numberRe.exec(text)) !== null) {
       const rawAmount = found[1].replace(/[ ,]/g, '');
       const afterAmount = text.slice(found.index + found[0].length, found.index + found[0].length + 12);
-      const hasThousandUnit = /^\\s*(?:الف|ألف|آلاف|الاف|الأف)/.test(afterAmount);
+      const hasThousandUnit = /^\s*(?:الف|ألف|آلاف|الاف|الأف)/.test(afterAmount);
       if (hasThousandUnit && Number(rawAmount) >= 1000) continue; // ambiguous scale: never guess
       const scaledAmount = hasThousandUnit ? String(Number(rawAmount) * 1000) : rawAmount;
       const amount = Number(scaledAmount);
@@ -835,7 +835,7 @@ function localExtract(batch, ownerNames) {
     }
     const uniqueHits = hits.filter((hit, index) => !hits.slice(0,index).some((other) => other.amount === hit.amount && other.currency === hit.currency));
     if (uniqueHits.length !== 1) return;
-    const recipientPhrase = /(?:حولتلي|حوّلتلي|حولوا\\s*لي|حوّلوا\\s*لي|وصلتك)/i.test(text);
+    const recipientPhrase = /(?:حولتلي|حوّلتلي|حولوا\s*لي|حوّلوا\s*لي|وصلتك)/i.test(text);
     const sentVerb = FIRST_PERSON_SEND.test(text) && !recipientPhrase;
     const receiveVerb = FIRST_PERSON_RECEIVE.test(text) || recipientPhrase;
     const passive = PASSIVE_TRANSFER.test(text);
