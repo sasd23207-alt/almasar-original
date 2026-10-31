@@ -2,13 +2,17 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
+const path = require("node:path");
 const vm = require("node:vm");
 
-const html = fs.readFileSync(require("node:path").join(__dirname, "..", "index.html"), "utf8");
-const match = html.match(/\/\/ <pure-logic>([\s\S]*?)\/\/ <\/pure-logic>/);
-assert.ok(match, "pure-logic block must exist");
+const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
+const pure = html.match(/\/\/ <pure-logic>([\s\S]*?)\/\/ <\/pure-logic>/);
+assert.ok(pure, "pure-logic block must exist");
+const start = html.indexOf("const CURRENCY_WORDS =");
+const end = html.indexOf("const BATCH_SIZE =", start);
+assert.ok(start >= 0 && end > start, "local extractor section must exist");
 const context = {};
-vm.runInNewContext(match[1] + "\nglobalThis.__api = { localExtract };", context);
+vm.runInNewContext(pure[1] + "\n" + html.slice(start, end) + "\nglobalThis.__api = { localExtract };", context);
 const extract = context.__api.localExtract;
 const at = "2026-10-31T10:00:00";
 
