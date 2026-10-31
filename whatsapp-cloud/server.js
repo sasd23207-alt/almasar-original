@@ -437,6 +437,7 @@ async function purgeExpiredContent() {
   await pool.query("UPDATE whatsapp_messages SET message_text=NULL, raw_payload=NULL, raw_value=NULL WHERE received_at < NOW() - INTERVAL '72 hours'");
   await pool.query("UPDATE whatsapp_personal_events SET message_text=NULL, raw_event=NULL WHERE received_at < NOW() - INTERVAL '72 hours'");
   await pool.query("DELETE FROM whatsapp_status_events WHERE received_at < NOW() - INTERVAL '1 hour'");
+  await pool.query("DELETE FROM whatsapp_webhook_receipts WHERE received_at < NOW() - INTERVAL '72 hours'");
   await pool.query("DELETE FROM whatsapp_pairing_codes WHERE expires_at < NOW() OR consumed_at IS NOT NULL");
 }
 
