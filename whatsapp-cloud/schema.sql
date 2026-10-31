@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS whatsapp_device_tokens (
 CREATE TABLE IF NOT EXISTS whatsapp_personal_events (
   id BIGSERIAL PRIMARY KEY,
   event_id UUID NOT NULL UNIQUE,
-  source_package TEXT NOT NULL CHECK (source_package = 'com.whatsapp'),
+  source_package TEXT NOT NULL,
   conversation TEXT,
   sender TEXT,
   direction TEXT NOT NULL CHECK (direction IN ('in', 'out', 'unknown')),
@@ -79,3 +79,11 @@ CREATE INDEX IF NOT EXISTS whatsapp_personal_events_status_idx
   ON whatsapp_personal_events (processing_status, id ASC);
 CREATE INDEX IF NOT EXISTS whatsapp_personal_events_time_idx
   ON whatsapp_personal_events (occurred_at DESC);
+
+
+-- Permit both standard WhatsApp and WhatsApp Business Android package IDs.
+ALTER TABLE whatsapp_personal_events
+  DROP CONSTRAINT IF EXISTS whatsapp_personal_events_source_package_check;
+ALTER TABLE whatsapp_personal_events
+  ADD CONSTRAINT whatsapp_personal_events_source_package_check
+  CHECK (source_package IN ('com.whatsapp', 'com.whatsapp.w4b'));
