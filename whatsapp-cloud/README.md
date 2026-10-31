@@ -38,7 +38,7 @@ Copy `.env.example` for local setup. Configure real secrets only in the hosting 
 - `META_GRAPH_VERSION`: currently supported Graph API version configured for the Meta app.
 - `WEBHOOK_READ_TOKEN`: legacy/admin secret protecting the bridge inbox API.
 - `PAIRING_CODE`: one-time code used to pair the first device. The current implementation still consumes one global pairing code; multi-device pairing has not yet been implemented.
-- `PWA_ORIGIN`: exact deployed PWA origin, e.g. `https://sasd23207.github.io`. CORS is fail-closed: when unset or when the request Origin differs, browser cross-origin access is not granted.
+- `PWA_ORIGIN`: exact deployed PWA origin, e.g. `https://sasd23207-alt.github.io`. CORS is fail-closed: when unset or when the request Origin differs, browser cross-origin access is not granted.
 - `PORT`: supplied by the hosting platform.
 - `PGSSL=true`: only if the database endpoint requires trusted TLS.
 
