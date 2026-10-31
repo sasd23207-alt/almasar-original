@@ -1191,6 +1191,16 @@ async function syncCloudMessages() {
       }
       const next = Number(data.next_cursor || cursor);
       if (!(next > cursor)) break;
+      // The ledger/inbox changes are durable before the server is asked to erase message text.
+      saveState(); await writeChain;
+      const cloudAckIds = items.map((item) => item.wamid).filter(Boolean);
+      if (cloudAckIds.length) {
+        const ack = await fetch(base + '/messages/ack', {
+          method: 'POST', headers: { ...cloudAuthHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: cloudAckIds })
+        });
+        if (!ack.ok) throw new Error('cloud_ack_' + ack.status);
+      }
       cursor = next;
       state.settings[CLOUD_SETTINGS_KEY].cursor = cursor;
       saveState(); await writeChain;
@@ -1238,6 +1248,16 @@ async function syncCloudMessages() {
       }
       const next = String(data.next_cursor || personalCursor);
       if (next === personalCursor) break;
+      // Save imported messages locally before acknowledging and clearing server-side text.
+      saveState(); await writeChain;
+      const personalAckIds = items.filter((event) => event.message_text && event.event_id).map((event) => event.event_id);
+      if (personalAckIds.length) {
+        const ack = await fetch(base + '/personal/messages/ack', {
+          method: 'POST', headers: { ...cloudAuthHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: personalAckIds })
+        });
+        if (!ack.ok) throw new Error('personal_ack_' + ack.status);
+      }
       personalCursor = next;
       state.settings[CLOUD_SETTINGS_KEY].personalCursor = personalCursor;
       saveState(); await writeChain;
