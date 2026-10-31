@@ -415,10 +415,20 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+async function purgeExpiredContent() {
+  await pool.query("UPDATE whatsapp_messages SET message_text=NULL, raw_payload=NULL, raw_value=NULL WHERE received_at < NOW() - INTERVAL '72 hours'");
+  await pool.query("UPDATE whatsapp_personal_events SET message_text=NULL, raw_event=NULL WHERE received_at < NOW() - INTERVAL '72 hours'");
+  await pool.query("DELETE FROM whatsapp_status_events WHERE received_at < NOW() - INTERVAL '1 hour'");
+  await pool.query("DELETE FROM whatsapp_pairing_codes WHERE expires_at < NOW() OR consumed_at IS NOT NULL");
+}
+
 async function main() {
   if (!pool) throw new Error("DATABASE_URL is required");
   const schema = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf8");
   await pool.query(schema);
+  await purgeExpiredContent();
+  const cleanupTimer = setInterval(() => purgeExpiredContent().catch(() => {}), 60 * 60 * 1000);
+  cleanupTimer.unref();
   server.listen(PORT, "0.0.0.0", () => {
     console.log("Almasar WhatsApp bridge listening on " + PORT);
   });
@@ -430,4 +440,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { validSignature, messageText, messageMedia, extractMessages, normalizePersonalEvent };
+module.exports = { validSignature, messageText, messageMedia, extractMessages, normalizePersonalEvent, purgeExpiredContent };
