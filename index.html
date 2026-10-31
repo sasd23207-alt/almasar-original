@@ -842,7 +842,8 @@ function localExtract(batch, ownerNames) {
     if ((!sentVerb && !receiveVerb && !passive) || (sentVerb && receiveVerb)) return;
     const speaker = resolveMessageSpeaker(m, ownerNames);
     let direction = null;
-    if (speaker !== 'unknown' && !passive) {
+    if (recipientPhrase) direction = 'received';
+    else if (speaker !== 'unknown' && !passive) {
       if (sentVerb) direction = speaker === 'owner' ? 'sent' : 'received';
       if (receiveVerb) direction = speaker === 'owner' ? 'received' : 'sent';
     }
