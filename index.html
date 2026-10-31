@@ -812,14 +812,18 @@ function localExtract(batch, ownerNames) {
   const items = [];
   batch.forEach((m) => {
     const original = String(m.text || '');
-    const text = normalizeArabicDigits(normalizeLine(original));
+    const text = normalizeArabicDigits(normalizeLine(original)).replace(/\\bالفين\\b|ألفين|الفين/g, '2000');
     if (!FINANCIAL_INTENT.test(text)) return;
     const numberRe = /(?:^|[^\p{L}\p{N}])([0-9]{1,3}(?:[, ][0-9]{3})+(?:\.[0-9]{1,4})?|[0-9]+(?:\.[0-9]{1,4})?)(?![\p{L}\p{N}])/gu;
     let found;
     const hits = [];
     while ((found = numberRe.exec(text)) !== null) {
       const rawAmount = found[1].replace(/[ ,]/g, '');
-      const amount = Number(rawAmount);
+      const afterAmount = text.slice(found.index + found[0].length, found.index + found[0].length + 12);
+      const hasThousandUnit = /^\\s*(?:الف|ألف|آلاف|الاف|الأف)/.test(afterAmount);
+      if (hasThousandUnit && Number(rawAmount) >= 1000) continue; // ambiguous scale: never guess
+      const scaledAmount = hasThousandUnit ? String(Number(rawAmount) * 1000) : rawAmount;
+      const amount = Number(scaledAmount);
       if (!Number.isFinite(amount) || amount <= 0 || amount > 1e12) continue;
       const index = found.index + found[0].indexOf(found[1]);
       const around = text.slice(Math.max(0, index - 36), Math.min(text.length, index + found[1].length + 36));
@@ -827,12 +831,13 @@ function localExtract(batch, ownerNames) {
       const uniqueCurrencies = [...new Set(currencyMatches.map(([code]) => code))];
       if (uniqueCurrencies.length !== 1) continue;
       if (/رقم\s*(?:الحساب|العمليه|العملية|المرجع)|(?:حساب|مرجع|reference|account)\s*(?:رقم|no\.?|#)/i.test(around)) continue;
-      hits.push({ amount: rawAmount, currency: uniqueCurrencies[0], index });
+      hits.push({ amount: scaledAmount, currency: uniqueCurrencies[0], index, warning: hasThousandUnit });
     }
     const uniqueHits = hits.filter((hit, index) => !hits.slice(0,index).some((other) => other.amount === hit.amount && other.currency === hit.currency));
     if (uniqueHits.length !== 1) return;
-    const sentVerb = FIRST_PERSON_SEND.test(text);
-    const receiveVerb = FIRST_PERSON_RECEIVE.test(text);
+    const recipientPhrase = /(?:حولتلي|حوّلتلي|حولوا\\s*لي|حوّلوا\\s*لي|وصلتك)/i.test(text);
+    const sentVerb = FIRST_PERSON_SEND.test(text) && !recipientPhrase;
+    const receiveVerb = FIRST_PERSON_RECEIVE.test(text) || recipientPhrase;
     const passive = PASSIVE_TRANSFER.test(text);
     if ((!sentVerb && !receiveVerb && !passive) || (sentVerb && receiveVerb)) return;
     const speaker = resolveMessageSpeaker(m, ownerNames);
@@ -847,15 +852,15 @@ function localExtract(batch, ownerNames) {
     const instrument = /صك\s*(?:مصدق|مُصدّق)|شيك\s*(?:مصدق|مُصدّق)/i.test(text) ? 'certified_cheque'
       : /كاش|نقد|cash/i.test(text) ? 'cash'
       : /حواله|حوالة|تحويل|بنك|مصرف|bank|transfer/i.test(text) ? 'bank_transfer' : 'unknown';
-    const confidence = direction ? (uniqueHits.length === 1 && !passive ? 0.78 : 0.62) : 0.35;
+    const confidence = direction ? (uniqueHits.length === 1 && !passive && !uniqueHits[0].warning ? 0.78 : 0.62) : 0.35;
     items.push({
       source_message_ids: [m.id], occurred_at: m.at,
-      amount: uniqueHits[0].amount, currency: uniqueHits[0].currency,
+      amount: uniqueHits[0].amount, currency: uniqueHits[0].currency, warnings: uniqueHits[0].warning ? ['تم تفسير ألف كمضاعف؛ راجع المبلغ قبل الاعتماد'] : [],
       direction: direction || (speaker === 'owner' ? 'sent' : 'received'),
       instrument, confidence,
       evidence: original.slice(0, 240),
       note: direction
-        ? 'استخراج محلي: مبلغ وعملة وقرائن اتجاه واضحة نسبيًا؛ يلزم مراجعة الرسالة الأصلية.'
+        ? (uniqueHits[0].warning ? 'تنبيه: فُسّر لفظ ألف كمضاعف؛ اعتماد يدوي مطلوب.' : 'استخراج محلي: مبلغ وعملة وقرائن اتجاه واضحة نسبيًا؛ يلزم مراجعة الرسالة الأصلية.')
         : 'اتجاه الحركة غير محسوم من النص؛ تم وضعه للمراجعة ولا يعتمد تلقائيًا.'
     });
   });
