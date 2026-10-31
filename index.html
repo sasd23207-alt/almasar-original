@@ -368,6 +368,7 @@ function convertProposalItem(item, allowedIds) {
     currency: String(item.currency).toUpperCase(), direction: item.direction,
     instrument: item.instrument || 'unknown', confidence,
     evidence: String(item.evidence || ''), note: String(item.note || ''),
+    warnings: Array.isArray(item.warnings) ? item.warnings.map((warning) => String(warning)) : [],
   };
 }
 
@@ -891,7 +892,8 @@ function enterProposal(merchantId, proposal, verdict) {
     const sourceMessage = state.messages.find((message) => message.id === proposal.sourceMessageIds[0]);
     const personalSource = sourceMessage && sourceMessage.source === 'whatsapp-personal';
     // Personal WhatsApp evidence always requires a human confirmation before affecting balances.
-    const confirmNow = !personalSource && verdict.status === 'ok' && state.settings.autoConfirmOk;
+    const hasWarnings = Array.isArray(proposal.warnings) && proposal.warnings.length > 0;
+    const confirmNow = !personalSource && !hasWarnings && verdict.status === 'ok' && state.settings.autoConfirmOk;
     const note = [proposal.note, personalSource ? 'مصدر شخصي: اعتماد يدوي إلزامي' : '',
       verdict.reasons.length ? 'تحقق: ' + verdict.reasons.join('، ') : ''].filter(Boolean).join(' | ');
     const transaction = {
