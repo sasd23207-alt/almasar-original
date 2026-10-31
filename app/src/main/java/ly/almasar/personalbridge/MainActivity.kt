@@ -1,11 +1,15 @@
 package ly.almasar.personalbridge
 
 import android.content.Intent
+import android.app.AlertDialog
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Button
 import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.RadioGroup
+import android.widget.RadioButton
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.work.Constraints
@@ -55,18 +59,50 @@ class MainActivity : AppCompatActivity() {
             refreshStatus("لم يصل نص للمشاركة")
             return
         }
-        val event = JSONObject()
-            .put("event_id", UUID.randomUUID().toString())
-            .put("source_package", "com.whatsapp")
-            .put("direction", "out")
-            .put("message_text", shared.take(12000))
-            .put("occurred_at", System.currentTimeMillis())
-            .put("conversation", "Shared from WhatsApp")
-            .put("sender", "Phone owner")
-            .put("capture_method", "android_share")
-        store.enqueue(event.toString())
-        scheduleUpload()
-        refreshStatus("تم حفظ النص المشارك وإضافته إلى طابور الإرسال")
+        val merchant = EditText(this).apply {
+            hint = "اسم التاجر أو جهة التحويل"
+            setSingleLine(true)
+        }
+        val choices = RadioGroup(this).apply {
+            orientation = RadioGroup.VERTICAL
+        }
+        val directions = listOf("أرسلت للتاجر" to "out", "استلمت من التاجر" to "in", "غير محدد — مراجعة يدوية" to "unknown")
+        directions.forEachIndexed { index, item ->
+            choices.addView(RadioButton(this).apply {
+                text = item.first
+                id = 1000 + index
+                isChecked = index == 2
+            })
+        }
+        val layout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(48, 16, 48, 8)
+            addView(merchant)
+            addView(choices)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("تأكيد الرسالة قبل حفظها")
+            .setMessage("اختر التاجر واتجاه الحركة. لن تُسجّل كحركة مالية مؤكدة تلقائياً.")
+            .setView(layout)
+            .setNegativeButton("إلغاء", null)
+            .setPositiveButton("حفظ للمراجعة") { _, _ ->
+                val selected = choices.checkedRadioButtonId - 1000
+                val direction = directions.getOrNull(selected)?.second ?: "unknown"
+                val name = merchant.text.toString().trim().ifBlank { "مشاركة يدوية" }
+                val event = JSONObject()
+                    .put("event_id", UUID.randomUUID().toString())
+                    .put("source_package", "com.whatsapp")
+                    .put("direction", direction)
+                    .put("message_text", shared.take(12000))
+                    .put("occurred_at", System.currentTimeMillis())
+                    .put("conversation", name)
+                    .put("sender", "Phone owner")
+                    .put("capture_method", "android_share")
+                store.enqueue(event.toString())
+                scheduleUpload()
+                refreshStatus("تم حفظ الرسالة باسم: $name — بانتظار مراجعتها")
+            }
+            .show()
     }
 
     private fun pairDevice() {
