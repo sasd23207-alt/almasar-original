@@ -24,7 +24,7 @@ class WhatsAppNotificationListener : NotificationListenerService() {
         val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim().orEmpty()
         if (title.matches(Regex("(?i)^\\d+\\s+(new )?messages?$"))) return
 
-        val events = mutableListOf<Pair<String, String>>()
+        val events = mutableListOf<Triple<String, String, Long>>()
         val messages = extras.getParcelableArray(Notification.EXTRA_MESSAGES)
         if (messages != null) {
             for (item in messages) {
@@ -32,7 +32,7 @@ class WhatsAppNotificationListener : NotificationListenerService() {
                 val body = bundle.getCharSequence("text")?.toString()?.trim().orEmpty()
                 if (body.isBlank()) continue
                 val sender = bundle.getCharSequence("sender")?.toString()?.trim().orEmpty()
-                events.add((sender.ifBlank { title }) to body)
+                events.add(Triple(sender.ifBlank { title }, body, bundle.getLong("time", sbn.postTime)))
             }
         }
         if (events.isEmpty()) {
@@ -44,13 +44,13 @@ class WhatsAppNotificationListener : NotificationListenerService() {
             add(extras.getCharSequence(Notification.EXTRA_BIG_TEXT))
             add(extras.getCharSequence(Notification.EXTRA_TEXT))
             extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.forEach(::add)
-            lines.forEach { events.add(title to it) }
+            lines.forEach { events.add(Triple(title, it, sbn.postTime)) }
         }
         if (events.isEmpty()) return
 
         val store = SecureStore(this)
-        for ((sender, body) in events) {
-            val stableKey = "${sbn.key}|$sender|$body"
+        for ((sender, body, messageTime) in events) {
+            val stableKey = "${sbn.key}|$sender|$messageTime|$body"
             val digest = MessageDigest.getInstance("SHA-256")
                 .digest(stableKey.toByteArray(StandardCharsets.UTF_8))
                 .joinToString("") { "%02x".format(it) }
@@ -59,7 +59,7 @@ class WhatsAppNotificationListener : NotificationListenerService() {
                 .put("source_package", sbn.packageName)
                 .put("direction", "unknown")
                 .put("message_text", body.take(12000))
-                .put("occurred_at", sbn.postTime)
+                .put("occurred_at", messageTime)
                 .put("conversation", title)
                 .put("sender", sender)
                 .put("capture_method", "android_notification")
